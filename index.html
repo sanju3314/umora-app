@@ -1,0 +1,1518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UMORA Product Catalog Management System</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+    <script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .btn-primary {
+            background: linear-gradient(to right, #3b82f6, #8b5cf6);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: bold;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .btn-primary:hover {
+            transform: scale(1.05);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+        }
+        .btn-secondary {
+            background: linear-gradient(to right, #6b7280, #9ca3af);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+        }
+        .input-field {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+        .input-field:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        .card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            border: 1px solid #e5e7eb;
+        }
+        .progress-step {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: white;
+        }
+        .progress-step.active {
+            background: linear-gradient(to right, #3b82f6, #8b5cf6);
+        }
+        .progress-step.completed {
+            background: #10b981;
+        }
+        .progress-step.inactive {
+            background: #9ca3af;
+        }
+        .stock-high { background: #dcfce7; color: #166534; border: 2px solid #bbf7d0; }
+        .stock-medium { background: #fef3c7; color: #92400e; border: 2px solid #fde68a; }
+        .stock-low { background: #fecaca; color: #991b1b; border: 2px solid #fca5a5; }
+        .stock-unknown { background: #f3f4f6; color: #6b7280; border: 2px solid #d1d5db; }
+    </style>
+</head>
+<body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background: linear-gradient(135deg, #dbeafe 0%, #f3e8ff 50%, #fce7f3 100%); min-height: 100vh;">
+
+    <div id="root">
+        <div style="display: flex; justify-content: center; align-items: center; height: 100vh;">
+            <div style="text-align: center;">
+                <div style="font-size: 24px; margin-bottom: 20px;">Loading UMORA System...</div>
+                <div style="width: 50px; height: 50px; border: 5px solid #f3f3f3; border-top: 5px solid #3498db; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        function App() {
+            const [currentStep, setCurrentStep] = useState(1);
+            const [customerData, setCustomerData] = useState({
+                date: new Date().toISOString().split('T')[0],
+                customerName: '',
+                customerMobile: '',
+                city: '',
+                pincode: ''
+            });
+            
+            const [invoiceData, setInvoiceData] = useState({
+                customerName: '',
+                addressLine1: '',
+                addressLine2: '',
+                city: '',
+                pincode: '',
+                state: '',
+                gstNo: '',
+                contactPerson: '',
+                contactDetails: '',
+                totalCartons: '',
+                ewayBillNumber: '',
+                paymentTerms: '100% ADVANCE',
+                customPaymentTerms: '',
+                logisticsCharges: 0,
+                cashDiscount: 0,
+                piNumber: '13/2025-26'
+            });
+            
+            const [products, setProducts] = useState([]);
+            const [categories, setCategories] = useState([]);
+            const [currentCategory, setCurrentCategory] = useState(0);
+            const [uploadedCSV, setUploadedCSV] = useState(null);
+            const [orderData, setOrderData] = useState({});
+            const [orderSummary, setOrderSummary] = useState({ totalItems: 0, totalValue: 0 });
+            
+            const [inventoryData, setInventoryData] = useState({});
+            const [uploadedInventoryCSV, setUploadedInventoryCSV] = useState(null);
+            const [inventoryStats, setInventoryStats] = useState({
+                totalSKUs: 0,
+                matchedSKUs: 0,
+                unknownSKUs: 0
+            });
+            const [showDownloadOptions, setShowDownloadOptions] = useState(false);
+            
+            const fileInputRef = useRef(null);
+            const inventoryFileInputRef = useRef(null);
+
+            // Calculate totals
+            useEffect(() => {
+                let totalItems = 0;
+                let totalValue = 0;
+                
+                Object.keys(orderData).forEach(childSKU => {
+                    const quantity = orderData[childSKU];
+                    if (quantity && quantity > 0) {
+                        const product = products.find(p => p['Child SKU Code'] === childSKU);
+                        if (product) {
+                            totalItems += quantity;
+                            totalValue += quantity * parseFloat(product.WSP || 0);
+                        }
+                    }
+                });
+                
+                setOrderSummary({ totalItems, totalValue: totalValue.toFixed(2) });
+            }, [orderData, products]);
+
+            // Calculate inventory statistics
+            useEffect(() => {
+                if (products.length > 0) {
+                    const uniqueSKUs = [...new Set(products.map(p => p['Child SKU Code']))].filter(Boolean);
+                    const matchedSKUs = uniqueSKUs.filter(sku => inventoryData[sku.toUpperCase()] !== undefined);
+                    const unknownSKUs = uniqueSKUs.length - matchedSKUs.length;
+                    
+                    setInventoryStats({
+                        totalSKUs: uniqueSKUs.length,
+                        matchedSKUs: matchedSKUs.length,
+                        unknownSKUs: unknownSKUs
+                    });
+                }
+            }, [products, inventoryData]);
+
+            // Handle CSV upload
+            const handleCSVUpload = (event) => {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                Papa.parse(file, {
+                    header: true,
+                    dynamicTyping: true,
+                    skipEmptyLines: true,
+                    complete: (results) => {
+                        const cleanedData = results.data.map(row => {
+                            const cleanedRow = {};
+                            Object.keys(row).forEach(key => {
+                                const cleanKey = key.trim();
+                                cleanedRow[cleanKey] = row[key];
+                            });
+                            return cleanedRow;
+                        }).filter(row => row['Child SKU Code']);
+                        
+                        setProducts(cleanedData);
+                        const uniqueCategories = [...new Set(cleanedData.map(item => item.Category))].filter(Boolean);
+                        setCategories(uniqueCategories);
+                        setUploadedCSV(file.name);
+                        alert('✅ Products loaded successfully! ' + cleanedData.length + ' products found.');
+                    },
+                    error: (error) => {
+                        alert('❌ Error uploading file: ' + error.message);
+                    }
+                });
+                
+                event.target.value = '';
+            };
+
+            // Handle Inventory CSV upload
+            const handleInventoryUpload = (event) => {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                Papa.parse(file, {
+                    header: true,
+                    dynamicTyping: true,
+                    skipEmptyLines: true,
+                    complete: (results) => {
+                        const inventoryMap = {};
+                        
+                        results.data.forEach(row => {
+                            const cleanedRow = {};
+                            Object.keys(row).forEach(key => {
+                                const cleanKey = key.trim();
+                                cleanedRow[cleanKey] = row[key];
+                            });
+                            
+                            let sku = cleanedRow.sku || cleanedRow.SKU || cleanedRow['Child SKU Code'];
+                            const quantity = parseInt(cleanedRow.old_quantity || cleanedRow.quantity || cleanedRow.stock || 0);
+                            
+                            if (sku) {
+                                const originalSKU = sku;
+                                sku = sku.toUpperCase();
+                                
+                                if (sku.startsWith('SZ')) {
+                                    sku = 'LA' + sku.substring(2);
+                                }
+                                
+                                if (originalSKU !== sku) {
+                                    console.log(`🔄 SKU converted: ${originalSKU} → ${sku}`);
+                                }
+                                
+                                inventoryMap[sku] = quantity;
+                            }
+                        });
+                        
+                        setInventoryData(inventoryMap);
+                        setUploadedInventoryCSV(file.name);
+                        alert('✅ Inventory data loaded successfully! ' + Object.keys(inventoryMap).length + ' SKUs found.');
+                    },
+                    error: (error) => {
+                        alert('❌ Error uploading inventory file: ' + error.message);
+                    }
+                });
+                
+                event.target.value = '';
+            };
+
+            // Get stock info
+            const getStockInfo = (childSKU) => {
+                const stock = inventoryData[childSKU.toUpperCase()];
+                if (stock === undefined) {
+                    return { quantity: null, status: 'unknown', className: 'stock-unknown' };
+                }
+                
+                if (stock >= 50) {
+                    return { quantity: stock, status: 'high', className: 'stock-high' };
+                } else if (stock >= 10) {
+                    return { quantity: stock, status: 'medium', className: 'stock-medium' };
+                } else {
+                    return { quantity: stock, status: 'low', className: 'stock-low' };
+                }
+            };
+
+            // Group products
+            const groupProductsByParentAndVariant = (categoryProducts) => {
+                const grouped = {};
+                
+                categoryProducts.forEach(product => {
+                    const parentSKU = product['Parent SKU Code'];
+                    const childSKU = product['Child SKU Code'];
+                    
+                    let variant;
+                    if (childSKU && childSKU.length > 11) {
+                        variant = childSKU.substring(9, 12);
+                    } else {
+                        variant = product.Color || 'DEFAULT';
+                    }
+                    
+                    const key = `${parentSKU}_${variant}`;
+                    
+                    if (!grouped[key]) {
+                        grouped[key] = {
+                            parentSKU,
+                            variant,
+                            color: product.Color,
+                            category: product.Category,
+                            mrp: product.MRP,
+                            imageUrl: product['Image URL'],
+                            hsn: product.HSN,
+                            sizes: []
+                        };
+                    }
+                    
+                    grouped[key].sizes.push({
+                        size: product.Size,
+                        childSKU: product['Child SKU Code'],
+                        wsp: product.WSP
+                    });
+                });
+                
+                return Object.values(grouped);
+            };
+
+            // Handle quantity changes
+            const handleQuantityChange = (childSKU, quantity) => {
+                const stockInfo = getStockInfo(childSKU);
+                const qty = quantity === '' ? 0 : parseInt(quantity) || 0;
+                
+                if (stockInfo.quantity !== null && qty > stockInfo.quantity) {
+                    alert(`❌ Cannot order ${qty} items. Only ${stockInfo.quantity} available in stock for SKU: ${childSKU}`);
+                    return;
+                }
+                
+                setOrderData(prev => {
+                    const newData = { ...prev };
+                    
+                    if (qty <= 0) {
+                        delete newData[childSKU];
+                    } else {
+                        newData[childSKU] = qty;
+                    }
+                    
+                    return newData;
+                });
+            };
+
+            // Get current category products
+            const getCurrentCategoryProducts = () => {
+                if (categories.length === 0) return [];
+                const currentCat = categories[currentCategory];
+                return products.filter(p => p.Category === currentCat);
+            };
+
+            // Validate customer info
+            const validateCustomerInfo = () => {
+                const { customerName, customerMobile, city, pincode } = customerData;
+                const mobileRegex = /^\d{10}$/;
+                const pincodeRegex = /^\d{6}$/;
+                
+                return customerName.trim() && 
+                       customerMobile.trim() && mobileRegex.test(customerMobile) &&
+                       city.trim() && 
+                       pincode.trim() && pincodeRegex.test(pincode);
+            };
+
+            // Indian States
+            const indianStates = [
+                'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh', 'Goa', 'Gujarat', 'Haryana',
+                'Himachal Pradesh', 'Jharkhand', 'Karnataka', 'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Manipur',
+                'Meghalaya', 'Mizoram', 'Nagaland', 'Odisha', 'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu',
+                'Telangana', 'Tripura', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal',
+                'Andaman and Nicobar Islands', 'Chandigarh', 'Dadra and Nagar Haveli and Daman and Diu', 'Delhi',
+                'Jammu and Kashmir', 'Ladakh', 'Lakshadweep', 'Puducherry'
+            ];
+
+            // Proceed to invoice
+            const proceedToInvoice = () => {
+                setInvoiceData(prev => ({
+                    ...prev,
+                    customerName: customerData.customerName,
+                    city: customerData.city,
+                    pincode: customerData.pincode,
+                    contactDetails: customerData.customerMobile
+                }));
+                setCurrentStep(5);
+            };
+
+            // Calculate invoice totals
+            const calculateInvoiceTotals = () => {
+                const orderEntries = Object.keys(orderData).filter(childSKU => orderData[childSKU] > 0);
+                
+                let totalQty = 0;
+                let totalValue = 0;
+                
+                orderEntries.forEach(childSKU => {
+                    const quantity = orderData[childSKU];
+                    const product = products.find(p => p['Child SKU Code'] === childSKU);
+                    if (product) {
+                        totalQty += quantity;
+                        totalValue += quantity * parseFloat(product.WSP || 0);
+                    }
+                });
+
+                const discountAmount = (totalValue * invoiceData.cashDiscount) / 100;
+                const netAmount = totalValue - discountAmount + parseFloat(invoiceData.logisticsCharges || 0);
+                
+                const isMaharashtra = invoiceData.state.toLowerCase().includes('maharashtra');
+                const gstRate = 5;
+                const gstAmount = (netAmount * gstRate) / 100;
+                
+                const finalAmount = netAmount + gstAmount;
+
+                return {
+                    totalQty,
+                    totalValue,
+                    discountAmount,
+                    netAmount,
+                    gstAmount,
+                    finalAmount,
+                    isMaharashtra,
+                    cgst: isMaharashtra ? gstAmount / 2 : 0,
+                    sgst: isMaharashtra ? gstAmount / 2 : 0,
+                    igst: !isMaharashtra ? gstAmount : 0
+                };
+            };
+
+            // Generate Invoice - Multiple Format Options
+            const generateInvoiceHTML = () => {
+                const totals = calculateInvoiceTotals();
+                const orderEntries = Object.keys(orderData).filter(childSKU => orderData[childSKU] > 0);
+                
+                return `<!DOCTYPE html>
+<html>
+<head>
+    <title>Proforma Invoice</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; font-size: 11px; }
+        .header { text-align: center; border-bottom: 2px solid #000; padding: 20px; }
+        .company-name { font-size: 28px; font-weight: bold; }
+        .invoice-details { display: flex; justify-content: space-between; margin: 20px 0; }
+        .customer-details, .company-details { width: 48%; }
+        .products-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        .products-table th, .products-table td { border: 1px solid #000; padding: 8px; text-align: left; }
+        .products-table th { background-color: #f0f0f0; }
+        .totals { text-align: right; margin: 20px 0; }
+        .total-line { margin: 5px 0; }
+        .final-total { font-weight: bold; font-size: 14px; border-top: 2px solid #000; padding-top: 10px; }
+        @media print { body { margin: 10px; } }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="company-name">UMORA FASHION PRIVATE LIMITED</div>
+        <div>Register Office: 25, Prabhat Centre Premises Co-op Society Ltd, Plot no 7, Sector 1A, CBD Belapur Navi Mumbai 400614</div>
+        <div>Factory Address: F6/218, Bhumi World Industrial Park, Pimplas Village, Mumbai-Nashik Highway, Thane – 421302</div>
+        <div style="margin-top: 15px; background: #ffeb3b; padding: 10px; font-weight: bold;">
+            PROFORMA INVOICE# ${invoiceData.piNumber} &nbsp;&nbsp;&nbsp; DATE ${new Date().toLocaleDateString('en-GB')}
+        </div>
+        <div style="font-weight: bold; margin-top: 10px;">GSTIN/UIN: 27AADCU5944M1ZR</div>
+    </div>
+
+    <div class="invoice-details">
+        <div class="customer-details">
+            <h3>BUYER DETAILS</h3>
+            <div><strong>CUSTOMER NAME:</strong> ${invoiceData.customerName}</div>
+            <div><strong>ADDRESS LINE 1:</strong> ${invoiceData.addressLine1}</div>
+            <div><strong>ADDRESS LINE 2:</strong> ${invoiceData.addressLine2}</div>
+            <div><strong>CITY:</strong> ${invoiceData.city}</div>
+            <div><strong>PINCODE:</strong> ${invoiceData.pincode}</div>
+            <div><strong>STATE:</strong> ${invoiceData.state}</div>
+            <div><strong>GST NO:</strong> ${invoiceData.gstNo}</div>
+            <div><strong>CONTACT PERSON:</strong> ${invoiceData.contactPerson}</div>
+            <div><strong>CONTACT DETAILS:</strong> ${invoiceData.contactDetails}</div>
+        </div>
+        <div class="company-details">
+            <h3>BANKING DETAILS</h3>
+            <div><strong>UMORA FASHION PVT LTD</strong></div>
+            <div>ICICI BANK VASHI</div>
+            <div>IFSC Code: ICIC0001881</div>
+            <div>A/c No: 188105002877</div>
+            <div style="margin-top: 20px;">
+                <div><strong>TOTAL CARTONS:</strong> ${invoiceData.totalCartons}</div>
+                <div><strong>E-WAY BILL:</strong> ${invoiceData.ewayBillNumber}</div>
+                <div><strong>PAYMENT TERMS:</strong> ${invoiceData.paymentTerms === 'OTHER' ? invoiceData.customPaymentTerms : invoiceData.paymentTerms}</div>
+                <div><strong>LOGISTICS CHARGES:</strong> ${invoiceData.logisticsCharges > 0 ? '₹' + invoiceData.logisticsCharges.toFixed(2) : 'FREE'}</div>
+            </div>
+        </div>
+    </div>
+
+    <table class="products-table">
+        <thead>
+            <tr>
+                <th>S NO</th>
+                <th>Product Code</th>
+                <th>Size</th>
+                <th>Category</th>
+                <th>Color</th>
+                <th>HSN</th>
+                <th>Qty</th>
+                <th>MRP</th>
+                <th>Rate</th>
+                <th>Amount</th>
+            </tr>
+        </thead>
+        <tbody>
+            ${orderEntries.map((childSKU, index) => {
+                const quantity = orderData[childSKU];
+                const product = products.find(p => p['Child SKU Code'] === childSKU);
+                if (!product) return '';
+                
+                const lineTotal = quantity * parseFloat(product.WSP || 0);
+                
+                return `
+                    <tr>
+                        <td>${index + 1}</td>
+                        <td>${product['Child SKU Code']}</td>
+                        <td>${product.Size}</td>
+                        <td>${product.Category}</td>
+                        <td>${product.Color}</td>
+                        <td>${product.HSN}</td>
+                        <td><strong>${quantity}</strong></td>
+                        <td>₹${product.MRP}</td>
+                        <td><strong>₹${product.WSP}</strong></td>
+                        <td><strong>₹${lineTotal.toFixed(2)}</strong></td>
+                    </tr>
+                `;
+            }).join('')}
+        </tbody>
+    </table>
+
+    <div class="totals">
+        <div class="total-line">Total Quantity: <strong>${totals.totalQty}</strong></div>
+        <div class="total-line">Total Value: <strong>₹${totals.totalValue.toFixed(2)}</strong></div>
+        ${invoiceData.cashDiscount > 0 ? `<div class="total-line">Cash Discount (${invoiceData.cashDiscount}%): <strong>₹${totals.discountAmount.toFixed(2)}</strong></div>` : ''}
+        ${invoiceData.logisticsCharges > 0 ? `<div class="total-line">Logistics Charges: <strong>₹${invoiceData.logisticsCharges.toFixed(2)}</strong></div>` : ''}
+        <div class="total-line">Net Amount: <strong>₹${totals.netAmount.toFixed(2)}</strong></div>
+        ${totals.isMaharashtra ? 
+            `<div class="total-line">CGST @ 2.5%: <strong>₹${totals.cgst.toFixed(2)}</strong></div>
+             <div class="total-line">SGST @ 2.5%: <strong>₹${totals.sgst.toFixed(2)}</strong></div>` :
+            `<div class="total-line">IGST @ 5%: <strong>₹${totals.igst.toFixed(2)}</strong></div>`
+        }
+        <div class="final-total">TOTAL INVOICE VALUE: <strong>₹${totals.finalAmount.toFixed(2)}</strong></div>
+    </div>
+
+    <div style="margin-top: 30px; font-weight: bold;">
+        Terms and Conditions:<br>
+        OUR PHILOSOPHY: WE DO WHAT IS RIGHT FOR OUR CUSTOMERS<br>
+        THIS IS A COMPUTER GENERATED PI SIGNATURE IS NOT NEEDED<br>
+        PLEASE MAKE THE PAYMENT AND UPDATE US WITH A SCREEN SHOT
+    </div>
+
+    <div style="text-align: right; margin-top: 40px; font-weight: bold;">
+        Authorized Signatory
+    </div>
+</body>
+</html>`;
+            };
+
+            // Download as HTML
+            const downloadAsHTML = () => {
+                const htmlContent = generateInvoiceHTML();
+                const blob = new Blob([htmlContent], { type: 'text/html' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `Invoice_${invoiceData.piNumber.replace('/', '_')}_${invoiceData.customerName.replace(/[^a-zA-Z0-9]/g, '_')}.html`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+                alert('✅ HTML Invoice downloaded successfully!');
+                setShowDownloadOptions(false);
+            };
+
+            // Download as PDF (Print to PDF)
+            const downloadAsPDF = () => {
+                const htmlContent = generateInvoiceHTML();
+                const newWindow = window.open('', '_blank');
+                newWindow.document.write(htmlContent);
+                newWindow.document.close();
+                
+                setTimeout(() => {
+                    newWindow.print();
+                    alert('📄 Print dialog opened! Choose "Save as PDF" in the print dialog.');
+                }, 500);
+                setShowDownloadOptions(false);
+            };
+
+            // Download as Excel
+            const downloadAsExcel = () => {
+                const totals = calculateInvoiceTotals();
+                const orderEntries = Object.keys(orderData).filter(childSKU => orderData[childSKU] > 0);
+                
+                // Create workbook
+                const wb = XLSX.utils.book_new();
+                
+                // Invoice Header Data
+                const headerData = [
+                    ['UMORA FASHION PRIVATE LIMITED'],
+                    ['PROFORMA INVOICE'],
+                    [''],
+                    ['Invoice Number:', invoiceData.piNumber],
+                    ['Date:', new Date().toLocaleDateString('en-GB')],
+                    [''],
+                    ['CUSTOMER DETAILS:'],
+                    ['Customer Name:', invoiceData.customerName],
+                    ['Address Line 1:', invoiceData.addressLine1],
+                    ['Address Line 2:', invoiceData.addressLine2],
+                    ['City:', invoiceData.city],
+                    ['Pincode:', invoiceData.pincode],
+                    ['State:', invoiceData.state],
+                    ['GST Number:', invoiceData.gstNo],
+                    ['Contact Person:', invoiceData.contactPerson],
+                    ['Contact Details:', invoiceData.contactDetails],
+                    [''],
+                    ['PRODUCTS:']
+                ];
+                
+                // Products Data
+                const productHeaders = ['S.No', 'Product Code', 'Size', 'Category', 'Color', 'HSN', 'Quantity', 'MRP', 'Rate', 'Amount'];
+                const productData = [productHeaders];
+                
+                orderEntries.forEach((childSKU, index) => {
+                    const quantity = orderData[childSKU];
+                    const product = products.find(p => p['Child SKU Code'] === childSKU);
+                    if (product) {
+                        const lineTotal = quantity * parseFloat(product.WSP || 0);
+                        productData.push([
+                            index + 1,
+                            product['Child SKU Code'],
+                            product.Size,
+                            product.Category,
+                            product.Color,
+                            product.HSN,
+                            quantity,
+                            `₹${product.MRP}`,
+                            `₹${product.WSP}`,
+                            `₹${lineTotal.toFixed(2)}`
+                        ]);
+                    }
+                });
+                
+                // Totals Data
+                const totalsData = [
+                    [''],
+                    ['TOTALS:'],
+                    ['Total Quantity:', totals.totalQty],
+                    ['Total Value:', `₹${totals.totalValue.toFixed(2)}`]
+                ];
+                
+                if (invoiceData.cashDiscount > 0) {
+                    totalsData.push(['Cash Discount:', `₹${totals.discountAmount.toFixed(2)}`]);
+                }
+                
+                if (invoiceData.logisticsCharges > 0) {
+                    totalsData.push(['Logistics Charges:', `₹${invoiceData.logisticsCharges.toFixed(2)}`]);
+                }
+                
+                totalsData.push(['Net Amount:', `₹${totals.netAmount.toFixed(2)}`]);
+                
+                if (totals.isMaharashtra) {
+                    totalsData.push(['CGST @ 2.5%:', `₹${totals.cgst.toFixed(2)}`]);
+                    totalsData.push(['SGST @ 2.5%:', `₹${totals.sgst.toFixed(2)}`]);
+                } else {
+                    totalsData.push(['IGST @ 5%:', `₹${totals.igst.toFixed(2)}`]);
+                }
+                
+                totalsData.push(['FINAL AMOUNT:', `₹${totals.finalAmount.toFixed(2)}`]);
+                
+                // Combine all data
+                const allData = [...headerData, ...productData, ...totalsData];
+                
+                // Create worksheet
+                const ws = XLSX.utils.aoa_to_sheet(allData);
+                
+                // Add worksheet to workbook
+                XLSX.utils.book_append_sheet(wb, ws, 'Invoice');
+                
+                // Download
+                XLSX.writeFile(wb, `Invoice_${invoiceData.piNumber.replace('/', '_')}_${invoiceData.customerName.replace(/[^a-zA-Z0-9]/g, '_')}.xlsx`);
+                alert('✅ Excel Invoice downloaded successfully!');
+                setShowDownloadOptions(false);
+            };
+
+            const { totalItems, totalValue } = orderSummary;
+
+            return (
+                <div style={{ padding: '20px', minHeight: '100vh' }}>
+                    <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+                        {/* Header */}
+                        <div className="card" style={{ padding: '40px', marginBottom: '30px', textAlign: 'center' }}>
+                            <h1 style={{ fontSize: '32px', fontWeight: 'bold', background: 'linear-gradient(to right, #3b82f6, #8b5cf6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', marginBottom: '30px' }}>
+                                UMORA Product Catalog Management System
+                            </h1>
+                            
+                            {/* Progress Steps */}
+                            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '15px', flexWrap: 'wrap' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <div className={`progress-step ${currentStep >= 1 ? (currentStep > 1 ? 'completed' : 'active') : 'inactive'}`}>
+                                        {currentStep > 1 ? '✓' : '1'}
+                                    </div>
+                                    <span style={{ fontWeight: 'bold' }}>Customer</span>
+                                </div>
+                                
+                                <span style={{ color: '#9ca3af' }}>→</span>
+                                
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <div className={`progress-step ${currentStep >= 2 ? (currentStep > 2 ? 'completed' : 'active') : 'inactive'}`}>
+                                        {currentStep > 2 ? '✓' : '2'}
+                                    </div>
+                                    <span style={{ fontWeight: 'bold' }}>Catalog</span>
+                                </div>
+                                
+                                <span style={{ color: '#9ca3af' }}>→</span>
+                                
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <div className={`progress-step ${currentStep >= 3 ? (currentStep > 3 ? 'completed' : 'active') : 'inactive'}`}>
+                                        {currentStep > 3 ? '✓' : '3'}
+                                    </div>
+                                    <span style={{ fontWeight: 'bold' }}>Inventory</span>
+                                </div>
+                                
+                                <span style={{ color: '#9ca3af' }}>→</span>
+                                
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <div className={`progress-step ${currentStep >= 4 ? (currentStep > 4 ? 'completed' : 'active') : 'inactive'}`}>
+                                        {currentStep > 4 ? '✓' : '4'}
+                                    </div>
+                                    <span style={{ fontWeight: 'bold' }}>Orders</span>
+                                </div>
+                                
+                                <span style={{ color: '#9ca3af' }}>→</span>
+                                
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <div className={`progress-step ${currentStep >= 5 ? 'active' : 'inactive'}`}>
+                                        5
+                                    </div>
+                                    <span style={{ fontWeight: 'bold' }}>Invoice</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Step 1: Customer Details */}
+                        {currentStep === 1 && (
+                            <div className="card" style={{ padding: '40px' }}>
+                                <h2 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '30px', display: 'flex', alignItems: 'center' }}>
+                                    👤 Customer Information
+                                </h2>
+                                
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
+                                    <div>
+                                        <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px' }}>📅 Date</label>
+                                        <input
+                                            type="date"
+                                            className="input-field"
+                                            value={customerData.date}
+                                            onChange={(e) => setCustomerData({...customerData, date: e.target.value})}
+                                        />
+                                    </div>
+                                    
+                                    <div>
+                                        <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px' }}>👤 Customer Name *</label>
+                                        <input
+                                            type="text"
+                                            className="input-field"
+                                            value={customerData.customerName}
+                                            onChange={(e) => setCustomerData({...customerData, customerName: e.target.value})}
+                                            placeholder="Enter customer name"
+                                        />
+                                    </div>
+                                    
+                                    <div>
+                                        <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px' }}>📱 Mobile Number * (10 digits)</label>
+                                        <input
+                                            type="tel"
+                                            className="input-field"
+                                            value={customerData.customerMobile}
+                                            onChange={(e) => {
+                                                const value = e.target.value.replace(/\D/g, '');
+                                                if (value.length <= 10) {
+                                                    setCustomerData({...customerData, customerMobile: value});
+                                                }
+                                            }}
+                                            placeholder="Enter 10-digit mobile number"
+                                            maxLength="10"
+                                        />
+                                        {customerData.customerMobile && !/^\d{10}$/.test(customerData.customerMobile) && (
+                                            <p style={{ color: '#ef4444', fontSize: '14px', marginTop: '5px' }}>Please enter exactly 10 digits</p>
+                                        )}
+                                    </div>
+                                    
+                                    <div>
+                                        <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px' }}>🏙️ City *</label>
+                                        <input
+                                            type="text"
+                                            className="input-field"
+                                            value={customerData.city}
+                                            onChange={(e) => setCustomerData({...customerData, city: e.target.value})}
+                                            placeholder="Enter city"
+                                        />
+                                    </div>
+                                    
+                                    <div>
+                                        <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px' }}>📍 Pincode * (6 digits)</label>
+                                        <input
+                                            type="text"
+                                            className="input-field"
+                                            value={customerData.pincode}
+                                            onChange={(e) => {
+                                                const value = e.target.value.replace(/\D/g, '');
+                                                if (value.length <= 6) {
+                                                    setCustomerData({...customerData, pincode: value});
+                                                }
+                                            }}
+                                            placeholder="Enter 6-digit pincode"
+                                            maxLength="6"
+                                        />
+                                        {customerData.pincode && !/^\d{6}$/.test(customerData.pincode) && (
+                                            <p style={{ color: '#ef4444', fontSize: '14px', marginTop: '5px' }}>Please enter exactly 6 digits</p>
+                                        )}
+                                    </div>
+                                </div>
+                                
+                                <div style={{ marginTop: '30px', textAlign: 'right' }}>
+                                    <button
+                                        className="btn-primary"
+                                        onClick={() => {
+                                            if (validateCustomerInfo()) {
+                                                setCurrentStep(2);
+                                            } else {
+                                                alert('⚠️ Please fill in all customer details correctly');
+                                            }
+                                        }}
+                                        disabled={!validateCustomerInfo()}
+                                        style={{ opacity: validateCustomerInfo() ? 1 : 0.5 }}
+                                    >
+                                        Next Step →
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Step 2: Upload Product Catalog */}
+                        {currentStep === 2 && (
+                            <div className="card" style={{ padding: '40px' }}>
+                                <h2 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '30px' }}>
+                                    📁 Upload Product Catalog
+                                </h2>
+                                
+                                <div style={{ border: '2px dashed #d1d5db', borderRadius: '12px', padding: '60px', textAlign: 'center', background: 'linear-gradient(to bottom right, #f9fafb, #f3f4f6)' }}>
+                                    <input
+                                        type="file"
+                                        accept=".csv"
+                                        onChange={handleCSVUpload}
+                                        ref={fileInputRef}
+                                        style={{ display: 'none' }}
+                                    />
+                                    
+                                    <div style={{ width: '80px', height: '80px', background: 'linear-gradient(to right, #3b82f6, #8b5cf6)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', color: 'white', fontSize: '32px' }}>
+                                        📄
+                                    </div>
+                                    
+                                    <h3 style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '10px' }}>
+                                        {uploadedCSV ? `✅ Uploaded: ${uploadedCSV}` : 'Upload your product catalog CSV'}
+                                    </h3>
+                                    
+                                    <p style={{ color: '#6b7280', marginBottom: '30px' }}>
+                                        {uploadedCSV 
+                                            ? `${products.length} products loaded across ${categories.length} categories` 
+                                            : 'CSV should contain: Parent SKU Code, Child SKU Code, Color, Size, Category, MRP, WSP, Image URL, HSN'
+                                        }
+                                    </p>
+                                    
+                                    <button
+                                        className="btn-primary"
+                                        onClick={() => fileInputRef.current?.click()}
+                                    >
+                                        📁 {uploadedCSV ? 'Change File' : 'Upload CSV'}
+                                    </button>
+                                </div>
+                                
+                                {uploadedCSV && (
+                                    <div style={{ marginTop: '30px', display: 'flex', justifyContent: 'space-between' }}>
+                                        <button
+                                            className="btn-secondary"
+                                            onClick={() => setCurrentStep(1)}
+                                        >
+                                            ← Back
+                                        </button>
+                                        <button
+                                            className="btn-primary"
+                                            onClick={() => setCurrentStep(3)}
+                                        >
+                                            Next: Inventory Data →
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Step 3: Upload Inventory */}
+                        {currentStep === 3 && (
+                            <div className="card" style={{ padding: '40px' }}>
+                                <h2 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '30px' }}>
+                                    📦 Upload Inventory Data
+                                </h2>
+                                
+                                <div style={{ border: '2px dashed #22c55e', borderRadius: '12px', padding: '60px', textAlign: 'center', background: 'linear-gradient(to bottom right, #f0fdf4, #dcfce7)' }}>
+                                    <input
+                                        type="file"
+                                        accept=".csv"
+                                        onChange={handleInventoryUpload}
+                                        ref={inventoryFileInputRef}
+                                        style={{ display: 'none' }}
+                                    />
+                                    
+                                    <div style={{ width: '80px', height: '80px', background: 'linear-gradient(to right, #22c55e, #16a34a)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', color: 'white', fontSize: '32px' }}>
+                                        📦
+                                    </div>
+                                    
+                                    <h3 style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '10px' }}>
+                                        {uploadedInventoryCSV ? `✅ Inventory Loaded: ${uploadedInventoryCSV}` : 'Upload inventory CSV from your system'}
+                                    </h3>
+                                    
+                                    <p style={{ color: '#6b7280', marginBottom: '30px' }}>
+                                        {uploadedInventoryCSV 
+                                            ? `${Object.keys(inventoryData).length} SKUs loaded from inventory system` 
+                                            : 'CSV should contain: sku (or Child SKU Code), old_quantity (or quantity/stock)'
+                                        }
+                                    </p>
+                                    
+                                    <button
+                                        className="btn-primary"
+                                        onClick={() => inventoryFileInputRef.current?.click()}
+                                        style={{ background: 'linear-gradient(to right, #22c55e, #16a34a)' }}
+                                    >
+                                        📦 {uploadedInventoryCSV ? 'Change Inventory File' : 'Upload Inventory CSV'}
+                                    </button>
+                                </div>
+                                
+                                {uploadedInventoryCSV && (
+                                    <>
+                                        {/* Inventory Statistics */}
+                                        <div style={{ marginTop: '30px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px' }}>
+                                            <div style={{ background: '#dbeafe', padding: '20px', borderRadius: '12px', border: '1px solid #93c5fd' }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <div>
+                                                        <p style={{ color: '#1d4ed8', fontWeight: 'bold', margin: '0 0 5px 0' }}>Total Product SKUs</p>
+                                                        <p style={{ fontSize: '24px', fontWeight: 'bold', color: '#1e40af', margin: 0 }}>{inventoryStats.totalSKUs}</p>
+                                                    </div>
+                                                    <span style={{ fontSize: '24px' }}>📄</span>
+                                                </div>
+                                            </div>
+                                            
+                                            <div style={{ background: '#dcfce7', padding: '20px', borderRadius: '12px', border: '1px solid #86efac' }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <div>
+                                                        <p style={{ color: '#16a34a', fontWeight: 'bold', margin: '0 0 5px 0' }}>Matched with Inventory</p>
+                                                        <p style={{ fontSize: '24px', fontWeight: 'bold', color: '#15803d', margin: 0 }}>{inventoryStats.matchedSKUs}</p>
+                                                    </div>
+                                                    <span style={{ fontSize: '24px' }}>✅</span>
+                                                </div>
+                                            </div>
+                                            
+                                            <div style={{ background: '#fed7aa', padding: '20px', borderRadius: '12px', border: '1px solid #fdba74' }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <div>
+                                                        <p style={{ color: '#c2410c', fontWeight: 'bold', margin: '0 0 5px 0' }}>Unknown Stock</p>
+                                                        <p style={{ fontSize: '24px', fontWeight: 'bold', color: '#9a3412', margin: 0 }}>{inventoryStats.unknownSKUs}</p>
+                                                    </div>
+                                                    <span style={{ fontSize: '24px' }}>⚠️</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div style={{ marginTop: '30px', display: 'flex', justifyContent: 'space-between' }}>
+                                            <button
+                                                className="btn-secondary"
+                                                onClick={() => setCurrentStep(2)}
+                                            >
+                                                ← Back
+                                            </button>
+                                            <button
+                                                className="btn-primary"
+                                                onClick={() => setCurrentStep(4)}
+                                                style={{ background: 'linear-gradient(to right, #22c55e, #16a34a)' }}
+                                            >
+                                                Start Ordering →
+                                            </button>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Step 4: Product Selection */}
+                        {currentStep === 4 && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                                {/* Category Navigation */}
+                                <div className="card" style={{ padding: '30px' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                                        <h2 style={{ fontSize: '24px', fontWeight: 'bold', background: 'linear-gradient(to right, #3b82f6, #8b5cf6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                                            {categories[currentCategory]} Products
+                                        </h2>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                                            <span style={{ background: '#f3f4f6', padding: '5px 15px', borderRadius: '20px', fontSize: '14px' }}>
+                                                Category {currentCategory + 1} of {categories.length}
+                                            </span>
+                                            <div style={{ display: 'flex', gap: '5px' }}>
+                                                <button
+                                                    className="btn-secondary"
+                                                    onClick={() => setCurrentCategory(Math.max(0, currentCategory - 1))}
+                                                    disabled={currentCategory === 0}
+                                                    style={{ padding: '8px', opacity: currentCategory === 0 ? 0.5 : 1 }}
+                                                >
+                                                    ←
+                                                </button>
+                                                <button
+                                                    className="btn-secondary"
+                                                    onClick={() => setCurrentCategory(Math.min(categories.length - 1, currentCategory + 1))}
+                                                    disabled={currentCategory === categories.length - 1}
+                                                    style={{ padding: '8px', opacity: currentCategory === categories.length - 1 ? 0.5 : 1 }}
+                                                >
+                                                    →
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                                        {categories.map((category, index) => (
+                                            <button
+                                                key={index}
+                                                onClick={() => setCurrentCategory(index)}
+                                                className={currentCategory === index ? 'btn-primary' : 'btn-secondary'}
+                                                style={{ 
+                                                    padding: '8px 16px',
+                                                    background: currentCategory === index 
+                                                        ? 'linear-gradient(to right, #8b5cf6, #7c3aed)' 
+                                                        : '#f3f4f6',
+                                                    color: currentCategory === index ? 'white' : '#374151'
+                                                }}
+                                            >
+                                                {category}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Products Grid */}
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(500px, 1fr))', gap: '20px' }}>
+                                    {groupProductsByParentAndVariant(getCurrentCategoryProducts()).map((productGroup, index) => (
+                                        <div key={index} className="card" style={{ padding: '20px', border: '2px solid #e5e7eb', transition: 'all 0.3s' }}>
+                                            <div style={{ display: 'flex', gap: '15px' }}>
+                                                <div style={{ flexShrink: 0 }}>
+                                                    <img
+                                                        src={productGroup.imageUrl || 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400&h=400&fit=crop'}
+                                                        alt={productGroup.parentSKU}
+                                                        style={{ width: '80px', height: '80px', objectFit: 'cover', borderRadius: '8px', border: '2px solid #e5e7eb' }}
+                                                        onError={(e) => {
+                                                            e.target.src = 'https://images.unsplash.com/photo-1503919545889-aef636e10ad4?w=400&h=400&fit=crop';
+                                                        }}
+                                                    />
+                                                </div>
+                                                
+                                                <div style={{ flex: 1 }}>
+                                                    <h3 style={{ fontSize: '18px', fontWeight: 'bold', background: 'linear-gradient(to right, #3b82f6, #8b5cf6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', margin: '0 0 5px 0' }}>
+                                                        {productGroup.parentSKU}
+                                                    </h3>
+                                                    <p style={{ fontSize: '14px', color: '#6b7280', margin: '0 0 5px 0' }}>Color: {productGroup.color}</p>
+                                                    <p style={{ fontSize: '14px', color: '#6b7280', margin: '0 0 5px 0' }}>Variant: {productGroup.variant}</p>
+                                                    <p style={{ fontSize: '14px', fontWeight: 'bold', color: '#dc2626', margin: '0 0 15px 0' }}>MRP: ₹{productGroup.mrp}</p>
+                                                    
+                                                    <div>
+                                                        <h4 style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '10px' }}>Available Sizes:</h4>
+                                                        {productGroup.sizes.map((sizeInfo, sizeIndex) => {
+                                                            const currentQty = orderData[sizeInfo.childSKU] || 0;
+                                                            const lineTotal = currentQty * parseFloat(sizeInfo.wsp || 0);
+                                                            const stockInfo = getStockInfo(sizeInfo.childSKU);
+                                                            
+                                                            return (
+                                                                <div key={sizeIndex} className={stockInfo.className} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px', borderRadius: '8px', marginBottom: '8px' }}>
+                                                                    <div style={{ flex: 1 }}>
+                                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
+                                                                            <span style={{ fontWeight: 'bold' }}>{sizeInfo.size}</span>
+                                                                            <div style={{ display: 'flex', gap: '8px' }}>
+                                                                                <span style={{ background: '#dcfce7', color: '#166534', padding: '2px 8px', borderRadius: '4px', fontSize: '12px' }}>
+                                                                                    WSP: ₹{sizeInfo.wsp}
+                                                                                </span>
+                                                                                <span style={{ fontWeight: 'bold', fontSize: '12px' }}>
+                                                                                    {stockInfo.quantity === null ? 'Unknown' : `Stock: ${stockInfo.quantity}`}
+                                                                                </span>
+                                                                            </div>
+                                                                        </div>
+                                                                        {currentQty > 0 && (
+                                                                            <div style={{ fontSize: '12px', color: '#2563eb', fontWeight: 'bold' }}>
+                                                                                Total: ₹{lineTotal.toFixed(2)}
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                    <div style={{ marginLeft: '10px' }}>
+                                                                        <input
+                                                                            type="number"
+                                                                            min="0"
+                                                                            max={stockInfo.quantity || 9999}
+                                                                            step="1"
+                                                                            value={currentQty === 0 ? '' : currentQty}
+                                                                            onChange={(e) => {
+                                                                                handleQuantityChange(sizeInfo.childSKU, e.target.value);
+                                                                            }}
+                                                                            style={{ width: '70px', padding: '5px', border: '2px solid #d1d5db', borderRadius: '6px', textAlign: 'center' }}
+                                                                            placeholder="0"
+                                                                        />
+                                                                        {stockInfo.quantity !== null && (
+                                                                            <p style={{ fontSize: '10px', color: '#6b7280', textAlign: 'center', margin: '2px 0 0 0' }}>
+                                                                                Max: {stockInfo.quantity}
+                                                                            </p>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {/* Order Summary */}
+                                <div className="card" style={{ padding: '30px' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <div style={{ display: 'flex', gap: '20px' }}>
+                                            <div style={{ background: 'linear-gradient(to right, #3b82f6, #1d4ed8)', padding: '15px 25px', borderRadius: '12px', color: 'white' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                    <span style={{ fontSize: '20px' }}>📦</span>
+                                                    <span style={{ fontSize: '18px', fontWeight: 'bold' }}>Total Qty: {totalItems}</span>
+                                                </div>
+                                            </div>
+                                            
+                                            <div style={{ background: 'linear-gradient(to right, #22c55e, #15803d)', padding: '15px 25px', borderRadius: '12px', color: 'white' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                    <span style={{ fontSize: '20px', fontWeight: 'bold' }}>₹</span>
+                                                    <span style={{ fontSize: '18px', fontWeight: 'bold' }}>{totalValue}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div style={{ display: 'flex', gap: '15px' }}>
+                                            <button
+                                                className="btn-secondary"
+                                                onClick={() => setCurrentStep(3)}
+                                            >
+                                                ← Back
+                                            </button>
+                                            <button
+                                                className="btn-primary"
+                                                onClick={proceedToInvoice}
+                                                disabled={totalItems === 0}
+                                                style={{ 
+                                                    background: totalItems > 0 
+                                                        ? 'linear-gradient(to right, #f97316, #ea580c)' 
+                                                        : '#9ca3af',
+                                                    opacity: totalItems === 0 ? 0.5 : 1
+                                                }}
+                                            >
+                                                📄 Generate Invoice ({totalItems} items)
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Step 5: Invoice Generation */}
+                        {currentStep === 5 && (
+                            <div className="card" style={{ padding: '40px' }}>
+                                <h2 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '30px' }}>
+                                    🏢 Generate Proforma Invoice
+                                </h2>
+                                
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '30px' }}>
+                                    {/* Customer Details */}
+                                    <div>
+                                        <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '20px', borderBottom: '2px solid #e5e7eb', paddingBottom: '10px' }}>Customer Details</h3>
+                                        
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                                            <div>
+                                                <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>Customer Name *</label>
+                                                <input
+                                                    type="text"
+                                                    className="input-field"
+                                                    value={invoiceData.customerName}
+                                                    onChange={(e) => setInvoiceData({...invoiceData, customerName: e.target.value})}
+                                                />
+                                            </div>
+                                            
+                                            <div>
+                                                <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>Address Line 1 *</label>
+                                                <input
+                                                    type="text"
+                                                    className="input-field"
+                                                    value={invoiceData.addressLine1}
+                                                    onChange={(e) => setInvoiceData({...invoiceData, addressLine1: e.target.value})}
+                                                    placeholder="Street address, building name"
+                                                />
+                                            </div>
+                                            
+                                            <div>
+                                                <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>Address Line 2</label>
+                                                <input
+                                                    type="text"
+                                                    className="input-field"
+                                                    value={invoiceData.addressLine2}
+                                                    onChange={(e) => setInvoiceData({...invoiceData, addressLine2: e.target.value})}
+                                                    placeholder="Area, landmark"
+                                                />
+                                            </div>
+                                            
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                                                <div>
+                                                    <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>City *</label>
+                                                    <input
+                                                        type="text"
+                                                        className="input-field"
+                                                        value={invoiceData.city}
+                                                        onChange={(e) => setInvoiceData({...invoiceData, city: e.target.value})}
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>Pincode *</label>
+                                                    <input
+                                                        type="text"
+                                                        className="input-field"
+                                                        value={invoiceData.pincode}
+                                                        onChange={(e) => setInvoiceData({...invoiceData, pincode: e.target.value})}
+                                                    />
+                                                </div>
+                                            </div>
+                                            
+                                            <div>
+                                                <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>State *</label>
+                                                <select
+                                                    className="input-field"
+                                                    value={invoiceData.state}
+                                                    onChange={(e) => setInvoiceData({...invoiceData, state: e.target.value})}
+                                                >
+                                                    <option value="">Select State</option>
+                                                    {indianStates.map((state) => (
+                                                        <option key={state} value={state}>{state}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                            
+                                            <div>
+                                                <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>GST Number</label>
+                                                <input
+                                                    type="text"
+                                                    className="input-field"
+                                                    value={invoiceData.gstNo}
+                                                    onChange={(e) => setInvoiceData({...invoiceData, gstNo: e.target.value.toUpperCase()})}
+                                                    placeholder="22AAAAA0000A1Z5 (if applicable)"
+                                                />
+                                            </div>
+                                            
+                                            <div>
+                                                <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>Contact Person</label>
+                                                <input
+                                                    type="text"
+                                                    className="input-field"
+                                                    value={invoiceData.contactPerson}
+                                                    onChange={(e) => setInvoiceData({...invoiceData, contactPerson: e.target.value})}
+                                                />
+                                            </div>
+                                            
+                                            <div>
+                                                <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>Contact Details</label>
+                                                <textarea
+                                                    className="input-field"
+                                                    value={invoiceData.contactDetails}
+                                                    onChange={(e) => setInvoiceData({...invoiceData, contactDetails: e.target.value})}
+                                                    rows="3"
+                                                    style={{ resize: 'vertical' }}
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    {/* Invoice Details */}
+                                    <div>
+                                        <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '20px', borderBottom: '2px solid #e5e7eb', paddingBottom: '10px' }}>Invoice Details</h3>
+                                        
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                                            <div>
+                                                <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>PI Number *</label>
+                                                <input
+                                                    type="text"
+                                                    className="input-field"
+                                                    value={invoiceData.piNumber}
+                                                    onChange={(e) => setInvoiceData({...invoiceData, piNumber: e.target.value})}
+                                                />
+                                            </div>
+                                            
+                                            <div>
+                                                <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>Total Cartons/Boxes</label>
+                                                <input
+                                                    type="text"
+                                                    className="input-field"
+                                                    value={invoiceData.totalCartons}
+                                                    onChange={(e) => setInvoiceData({...invoiceData, totalCartons: e.target.value})}
+                                                />
+                                            </div>
+                                            
+                                            <div>
+                                                <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>E-way Bill Number</label>
+                                                <input
+                                                    type="text"
+                                                    className="input-field"
+                                                    value={invoiceData.ewayBillNumber}
+                                                    onChange={(e) => setInvoiceData({...invoiceData, ewayBillNumber: e.target.value})}
+                                                />
+                                            </div>
+                                            
+                                            <div>
+                                                <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>Payment Terms</label>
+                                                <select
+                                                    className="input-field"
+                                                    value={invoiceData.paymentTerms}
+                                                    onChange={(e) => setInvoiceData({...invoiceData, paymentTerms: e.target.value})}
+                                                >
+                                                    <option value="100% ADVANCE">100% ADVANCE</option>
+                                                    <option value="OTHER">Other</option>
+                                                </select>
+                                                {invoiceData.paymentTerms === 'OTHER' && (
+                                                    <input
+                                                        type="text"
+                                                        className="input-field"
+                                                        style={{ marginTop: '10px' }}
+                                                        value={invoiceData.customPaymentTerms}
+                                                        onChange={(e) => setInvoiceData({...invoiceData, customPaymentTerms: e.target.value})}
+                                                        placeholder="Enter custom payment terms"
+                                                    />
+                                                )}
+                                            </div>
+                                            
+                                            <div>
+                                                <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>Logistics Charges (₹)</label>
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    step="0.01"
+                                                    className="input-field"
+                                                    value={invoiceData.logisticsCharges}
+                                                    onChange={(e) => setInvoiceData({...invoiceData, logisticsCharges: parseFloat(e.target.value) || 0})}
+                                                />
+                                            </div>
+                                            
+                                            <div>
+                                                <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>Cash Discount (%)</label>
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    max="100"
+                                                    step="0.1"
+                                                    className="input-field"
+                                                    value={invoiceData.cashDiscount}
+                                                    onChange={(e) => setInvoiceData({...invoiceData, cashDiscount: parseFloat(e.target.value) || 0})}
+                                                />
+                                            </div>
+                                            
+                                            {/* Invoice Preview */}
+                                            <div style={{ background: '#f9fafb', padding: '20px', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
+                                                <h4 style={{ fontWeight: 'bold', marginBottom: '15px' }}>Invoice Preview</h4>
+                                                {(() => {
+                                                    const totals = calculateInvoiceTotals();
+                                                    return (
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '14px' }}>
+                                                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                                                <span>Total Qty:</span>
+                                                                <span style={{ fontWeight: 'bold' }}>{totals.totalQty}</span>
+                                                            </div>
+                                                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                                                <span>Total Value:</span>
+                                                                <span style={{ fontWeight: 'bold' }}>₹{totals.totalValue.toFixed(2)}</span>
+                                                            </div>
+                                                            {invoiceData.cashDiscount > 0 && (
+                                                                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#dc2626' }}>
+                                                                    <span>Cash Discount ({invoiceData.cashDiscount}%):</span>
+                                                                    <span style={{ fontWeight: 'bold' }}>-₹{totals.discountAmount.toFixed(2)}</span>
+                                                                </div>
+                                                            )}
+                                                            {invoiceData.logisticsCharges > 0 && (
+                                                                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#2563eb' }}>
+                                                                    <span>Logistics Charges:</span>
+                                                                    <span style={{ fontWeight: 'bold' }}>+₹{invoiceData.logisticsCharges.toFixed(2)}</span>
+                                                                </div>
+                                                            )}
+                                                            <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #d1d5db', paddingTop: '8px' }}>
+                                                                <span>Net Amount:</span>
+                                                                <span style={{ fontWeight: 'bold' }}>₹{totals.netAmount.toFixed(2)}</span>
+                                                            </div>
+                                                            {totals.isMaharashtra ? (
+                                                                <>
+                                                                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#16a34a' }}>
+                                                                        <span>CGST @ 2.5%:</span>
+                                                                        <span style={{ fontWeight: 'bold' }}>₹{totals.cgst.toFixed(2)}</span>
+                                                                    </div>
+                                                                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#16a34a' }}>
+                                                                        <span>SGST @ 2.5%:</span>
+                                                                        <span style={{ fontWeight: 'bold' }}>₹{totals.sgst.toFixed(2)}</span>
+                                                                    </div>
+                                                                </>
+                                                            ) : (
+                                                                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#16a34a' }}>
+                                                                    <span>IGST @ 5%:</span>
+                                                                    <span style={{ fontWeight: 'bold' }}>₹{totals.igst.toFixed(2)}</span>
+                                                                </div>
+                                                            )}
+                                                            <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '2px solid #374151', paddingTop: '8px', fontSize: '16px', fontWeight: 'bold' }}>
+                                                                <span>Final Amount:</span>
+                                                                <span style={{ color: '#16a34a' }}>₹{totals.finalAmount.toFixed(2)}</span>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })()}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div style={{ marginTop: '40px', display: 'flex', justifyContent: 'space-between' }}>
+                                    <button
+                                        className="btn-secondary"
+                                        onClick={() => setCurrentStep(4)}
+                                    >
+                                        ← Back to Orders
+                                    </button>
+                                    
+                                    <button
+                                        className="btn-primary"
+                                        onClick={() => setShowDownloadOptions(true)}
+                                        disabled={!invoiceData.customerName || !invoiceData.addressLine1 || !invoiceData.city || !invoiceData.pincode || !invoiceData.state}
+                                        style={{ 
+                                            background: (invoiceData.customerName && invoiceData.addressLine1 && invoiceData.city && invoiceData.pincode && invoiceData.state)
+                                                ? 'linear-gradient(to right, #16a34a, #15803d)' 
+                                                : '#9ca3af',
+                                            opacity: (!invoiceData.customerName || !invoiceData.addressLine1 || !invoiceData.city || !invoiceData.pincode || !invoiceData.state) ? 0.5 : 1
+                                        }}
+                                    >
+                                        📄 Download Invoice
+                                    </button>
+                                </div>
+                                
+                                {/* Download Options Modal */}
+                                {showDownloadOptions && (
+                                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+                                        <div style={{ background: 'white', borderRadius: '12px', padding: '40px', maxWidth: '500px', width: '90%', boxShadow: '0 25px 50px rgba(0,0,0,0.25)' }}>
+                                            <h3 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '20px', textAlign: 'center' }}>
+                                                📄 Choose Download Format
+                                            </h3>
+                                            <p style={{ color: '#6b7280', textAlign: 'center', marginBottom: '30px' }}>
+                                                Select your preferred format for the invoice:
+                                            </p>
+                                            
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                                                <button
+                                                    className="btn-primary"
+                                                    onClick={downloadAsPDF}
+                                                    style={{ background: 'linear-gradient(to right, #dc2626, #b91c1c)', padding: '15px 25px', fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}
+                                                >
+                                                    📄 Download as PDF (Recommended)
+                                                </button>
+                                                
+                                                <button
+                                                    className="btn-primary"
+                                                    onClick={downloadAsExcel}
+                                                    style={{ background: 'linear-gradient(to right, #16a34a, #15803d)', padding: '15px 25px', fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}
+                                                >
+                                                    📊 Download as Excel
+                                                </button>
+                                                
+                                                <button
+                                                    className="btn-primary"
+                                                    onClick={downloadAsHTML}
+                                                    style={{ background: 'linear-gradient(to right, #2563eb, #1d4ed8)', padding: '15px 25px', fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}
+                                                >
+                                                    🌐 Download as HTML
+                                                </button>
+                                            </div>
+                                            
+                                            <div style={{ marginTop: '30px', textAlign: 'center' }}>
+                                                <button
+                                                    className="btn-secondary"
+                                                    onClick={() => setShowDownloadOptions(false)}
+                                                    style={{ padding: '10px 20px' }}
+                                                >
+                                                    Cancel
+                                                </button>
+                                            </div>
+                                            
+                                            <div style={{ marginTop: '20px', padding: '15px', background: '#f0f9ff', borderRadius: '8px', fontSize: '14px' }}>
+                                                <p style={{ margin: '0 0 10px 0', fontWeight: 'bold', color: '#1e40af' }}>💡 Format Guide:</p>
+                                                <p style={{ margin: '0 0 5px 0', color: '#1e40af' }}><strong>PDF:</strong> Best for printing and official documents</p>
+                                                <p style={{ margin: '0 0 5px 0', color: '#1e40af' }}><strong>Excel:</strong> Best for data analysis and calculations</p>
+                                                <p style={{ margin: 0, color: '#1e40af' }}><strong>HTML:</strong> Best for web viewing and customization</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
+        // Render the app
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>
