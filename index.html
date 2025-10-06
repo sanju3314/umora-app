@@ -11,6 +11,7 @@
     <script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
+        /* Custom Styles */
         .btn-primary {
             background: linear-gradient(to right, #3b82f6, #8b5cf6);
             color: white;
@@ -74,6 +75,62 @@
         .stock-medium { background: #fef3c7; color: #92400e; border: 2px solid #fde68a; }
         .stock-low { background: #fecaca; color: #991b1b; border: 2px solid #fca5a5; }
         .stock-unknown { background: #f3f4f6; color: #6b7280; border: 2px solid #d1d5db; }
+
+        /* Styles for the Image Lightbox */
+        .lightbox-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s, visibility 0.3s;
+        }
+        .lightbox-overlay.visible {
+            opacity: 1;
+            visibility: visible;
+        }
+        .lightbox-content {
+            max-width: 90%;
+            max-height: 90%;
+            position: relative;
+        }
+        .lightbox-image {
+            display: block;
+            width: auto;
+            max-width: 100vw;
+            height: auto;
+            max-height: 90vh;
+            border-radius: 12px;
+            box-shadow: 0 0 30px rgba(0,0,0,0.5);
+        }
+        .lightbox-close {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: white;
+            color: #3b82f6;
+            border: none;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            font-size: 24px;
+            cursor: pointer;
+            line-height: 40px;
+            text-align: center;
+            font-weight: bold;
+            opacity: 0.8;
+            transition: opacity 0.2s;
+        }
+        .lightbox-close:hover {
+            opacity: 1;
+        }
     </style>
 </head>
 <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background: linear-gradient(135deg, #dbeafe 0%, #f3e8ff 50%, #fce7f3 100%); min-height: 100vh;">
@@ -96,6 +153,80 @@
 
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
+
+        // Custom function to convert number to words (Indian system)
+        const numberToWordsIndianSystem = (n) => {
+            const num = Math.floor(n);
+            const words = [
+                'Zero', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 
+                'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'
+            ];
+            const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+            const units = [
+                'Crore', 'Lakh', 'Thousand', 'Hundred'
+            ];
+            const divisors = [10000000, 100000, 1000, 100];
+
+            if (num === 0) return 'INR Zero Only';
+
+            let result = '';
+            
+            // Function to convert 1-999 to words
+            const convertLessThanThousand = (num) => {
+                if (num === 0) return '';
+                if (num < 20) return words[num];
+                if (num < 100) return tens[Math.floor(num / 10)] + (num % 10 !== 0 ? ' ' + words[num % 10] : '');
+                return words[Math.floor(num / 100)] + ' Hundred' + (num % 100 !== 0 ? ' and ' + convertLessThanThousand(num % 100) : '');
+            };
+
+            let tempNum = num;
+
+            for (let i = 0; i < divisors.length; i++) {
+                const divisor = divisors[i];
+                const unit = units[i];
+
+                if (tempNum >= divisor) {
+                    let part = Math.floor(tempNum / divisor);
+                    
+                    if (unit === 'Hundred') {
+                        // Special handling for the thousands group when it's just 'hundred'
+                        if (divisors[i-1] === 1000 && tempNum >= 1000 && tempNum < 100000) {
+                            part = Math.floor(tempNum / 1000);
+                            result += convertLessThanThousand(part) + ' Thousand ';
+                            tempNum %= 1000;
+                            continue;
+                        }
+                        
+                        // Handle the hundreds place of the last group
+                        result += convertLessThanThousand(part) + ' ' + unit + ' ';
+                    } else {
+                        // Standard handling for crore, lakh, thousand
+                        result += convertLessThanThousand(part) + ' ' + unit + ' ';
+                    }
+                    tempNum %= divisor;
+                }
+            }
+            
+            // Handle the remaining part (less than 100)
+            if (tempNum > 0) {
+                result += convertLessThanThousand(tempNum);
+            }
+            
+            // Handle paise (decimals)
+            const paise = Math.round((n - num) * 100);
+            let paiseWords = '';
+            if (paise > 0) {
+                paiseWords = ' and ' + convertLessThanThousand(paise) + ' Paise';
+            }
+            
+            // Clean up and format
+            let finalWords = 'INR ' + result.trim().replace(/\s+/g, ' ') + paiseWords + ' Only';
+            // Simple replacement to adhere to Indian numbering tradition (e.g. "One hundred and sixty two" -> "One hundred sixty two")
+            finalWords = finalWords.replace(/and hundred/g, 'hundred');
+            
+            return finalWords;
+        };
+
 
         function App() {
             const [currentStep, setCurrentStep] = useState(1);
@@ -142,8 +273,25 @@
             });
             const [showDownloadOptions, setShowDownloadOptions] = useState(false);
             
+            // New state for lightbox
+            const [lightbox, setLightbox] = useState({
+                visible: false,
+                imageUrl: ''
+            });
+
             const fileInputRef = useRef(null);
             const inventoryFileInputRef = useRef(null);
+
+            // Function to open lightbox
+            const openLightbox = (imageUrl) => {
+                setLightbox({ visible: true, imageUrl });
+            };
+
+            // Function to close lightbox
+            const closeLightbox = () => {
+                setLightbox({ visible: false, imageUrl: '' });
+            };
+
 
             // Calculate totals
             useEffect(() => {
@@ -192,7 +340,14 @@
                         const cleanedData = results.data.map(row => {
                             const cleanedRow = {};
                             Object.keys(row).forEach(key => {
-                                const cleanKey = key.trim();
+                                // Robust key cleaning: strip non-alphanumeric chars and trim whitespace
+                                let cleanKey = key.replace(/[^a-zA-Z0-9\s]/g, '').trim(); 
+                                
+                                // Special handling for the Image URL column name, as it's critical
+                                if (key.toLowerCase().includes('image') && key.toLowerCase().includes('url')) {
+                                    cleanKey = 'Image URL'; 
+                                }
+
                                 cleanedRow[cleanKey] = row[key];
                             });
                             return cleanedRow;
@@ -202,10 +357,14 @@
                         const uniqueCategories = [...new Set(cleanedData.map(item => item.Category))].filter(Boolean);
                         setCategories(uniqueCategories);
                         setUploadedCSV(file.name);
-                        alert('✅ Products loaded successfully! ' + cleanedData.length + ' products found.');
+                        // Using a custom message box instead of alert()
+                        // alert('✅ Products loaded successfully! ' + cleanedData.length + ' products found.');
+                        console.log('✅ Products loaded successfully! ' + cleanedData.length + ' products found.');
                     },
                     error: (error) => {
-                        alert('❌ Error uploading file: ' + error.message);
+                        // Using a custom message box instead of alert()
+                        // alert('❌ Error uploading file: ' + error.message);
+                        console.error('❌ Error uploading file: ' + error.message);
                     }
                 });
                 
@@ -252,10 +411,14 @@
                         
                         setInventoryData(inventoryMap);
                         setUploadedInventoryCSV(file.name);
-                        alert('✅ Inventory data loaded successfully! ' + Object.keys(inventoryMap).length + ' SKUs found.');
+                        // Using a custom message box instead of alert()
+                        // alert('✅ Inventory data loaded successfully! ' + Object.keys(inventoryMap).length + ' SKUs found.');
+                        console.log('✅ Inventory data loaded successfully! ' + Object.keys(inventoryMap).length + ' SKUs found.');
                     },
                     error: (error) => {
-                        alert('❌ Error uploading inventory file: ' + error.message);
+                        // Using a custom message box instead of alert()
+                        // alert('❌ Error uploading inventory file: ' + error.message);
+                        console.error('❌ Error uploading inventory file: ' + error.message);
                     }
                 });
                 
@@ -302,7 +465,7 @@
                             color: product.Color,
                             category: product.Category,
                             mrp: product.MRP,
-                            imageUrl: product['Image URL'],
+                            imageUrl: product['Image URL'] ? product['Image URL'].trim() : '', // Ensure image URL is trimmed/clean
                             hsn: product.HSN,
                             sizes: []
                         };
@@ -324,7 +487,8 @@
                 const qty = quantity === '' ? 0 : parseInt(quantity) || 0;
                 
                 if (stockInfo.quantity !== null && qty > stockInfo.quantity) {
-                    alert(`❌ Cannot order ${qty} items. Only ${stockInfo.quantity} available in stock for SKU: ${childSKU}`);
+                    // Using console.error instead of alert()
+                    console.error(`❌ Cannot order ${qty} items. Only ${stockInfo.quantity} available in stock for SKU: ${childSKU}`);
                     return;
                 }
                 
@@ -420,11 +584,71 @@
                     igst: !isMaharashtra ? gstAmount : 0
                 };
             };
+            
+            // Helper function to get product data with index for mapping
+            const getOrderProductsWithIndex = () => {
+                const orderEntries = Object.keys(orderData)
+                    .filter(childSKU => orderData[childSKU] > 0)
+                    .map(childSKU => ({
+                        childSKU,
+                        quantity: orderData[childSKU],
+                        product: products.find(p => p['Child SKU Code'] === childSKU)
+                    }))
+                    .filter(item => item.product)
+                    // Ensure products are sorted to keep variants grouped for rowspan logic
+                    .sort((a, b) => a.product['Parent SKU Code'].localeCompare(b.product['Parent SKU Code']));
+
+                let productMap = {};
+                
+                // Group by Parent SKU to calculate rowspan needed for image (now redundant but kept for grouping logic)
+                orderEntries.forEach(item => {
+                    const parentSKU = item.product['Parent SKU Code'];
+                    if (!productMap[parentSKU]) {
+                        productMap[parentSKU] = {
+                            count: 0,
+                            firstIndex: -1,
+                            imageUrl: item.product['Image URL'] || ''
+                        };
+                    }
+                    productMap[parentSKU].count++;
+                });
+
+                let runningIndex = 0;
+                const productsWithRowspan = orderEntries.map((item, originalIndex) => {
+                    const parentSKU = item.product['Parent SKU Code'];
+                    
+                    let rowspan = 0;
+                    let isFirstInGroup = false;
+
+                    // Determine if this is the first row of its group
+                    if (productMap[parentSKU].firstIndex === -1) {
+                        productMap[parentSKU].firstIndex = runningIndex;
+                        rowspan = productMap[parentSKU].count;
+                        isFirstInGroup = true;
+                    }
+                    
+                    runningIndex++;
+
+                    return {
+                        ...item,
+                        rowspan: isFirstInGroup ? rowspan : 0, // only set rowspan for the first item
+                        isFirstInGroup
+                    };
+                });
+
+                return productsWithRowspan;
+            };
+
 
             // Generate Invoice - Multiple Format Options
             const generateInvoiceHTML = () => {
                 const totals = calculateInvoiceTotals();
-                const orderEntries = Object.keys(orderData).filter(childSKU => orderData[childSKU] > 0);
+                const orderProducts = getOrderProductsWithIndex();
+                
+                const qrCodeUrl = "https://cdn.shopify.com/s/files/1/0612/8861/1913/files/Umora_UP_QR_200_pixel_x_205_pixel.jpg?v=1759408517";
+                
+                // Total amount in words
+                const totalInWords = numberToWordsIndianSystem(totals.finalAmount);
                 
                 return `<!DOCTYPE html>
 <html>
@@ -442,6 +666,10 @@
         .totals { text-align: right; margin: 20px 0; }
         .total-line { margin: 5px 0; }
         .final-total { font-weight: bold; font-size: 14px; border-top: 2px solid #000; padding-top: 10px; }
+        .footer { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 30px; }
+        .qr-section { margin-top: 30px; display: flex; align-items: flex-start; }
+        .qr-details { margin-left: 20px; }
+        .highlight { background-color: #ffffc0; padding: 5px; border-radius: 3px; } /* Highlight style */
         @media print { body { margin: 10px; } }
     </style>
 </head>
@@ -500,11 +728,8 @@
             </tr>
         </thead>
         <tbody>
-            ${orderEntries.map((childSKU, index) => {
-                const quantity = orderData[childSKU];
-                const product = products.find(p => p['Child SKU Code'] === childSKU);
-                if (!product) return '';
-                
+            ${orderProducts.map((item, index) => {
+                const { product, quantity } = item;
                 const lineTotal = quantity * parseFloat(product.WSP || 0);
                 
                 return `
@@ -538,10 +763,22 @@
         }
         <div class="final-total">TOTAL INVOICE VALUE: <strong>₹${totals.finalAmount.toFixed(2)}</strong></div>
     </div>
+    
+    <!-- Total in Words (Highlighted) -->
+    <div style="margin-top: 15px; font-size: 12px; font-weight: bold;">
+        Total Invoice Value in Words: 
+        <span class="highlight">${totalInWords}</span>
+    </div>
 
+    <!-- QR Code Section (Left Aligned and Bold Text) -->
+    <div style="margin-top: 30px; text-align: left;">
+        <img src="${qrCodeUrl}" alt="Payment QR Code" style="width: 200px; height: 205px; border: 1px solid #ddd; padding: 5px; display: block;">
+        <div style="font-size: 10px; color: #555; margin-top: 5px;"><strong>Scan to Pay via UPI</strong></div>
+    </div>
+
+    <!-- Updated Terms and Conditions -->
     <div style="margin-top: 30px; font-weight: bold;">
         Terms and Conditions:<br>
-        OUR PHILOSOPHY: WE DO WHAT IS RIGHT FOR OUR CUSTOMERS<br>
         THIS IS A COMPUTER GENERATED PI SIGNATURE IS NOT NEEDED<br>
         PLEASE MAKE THE PAYMENT AND UPDATE US WITH A SCREEN SHOT
     </div>
@@ -565,7 +802,8 @@
                 link.click();
                 document.body.removeChild(link);
                 URL.revokeObjectURL(url);
-                alert('✅ HTML Invoice downloaded successfully!');
+                // Using console.log instead of alert()
+                console.log('✅ HTML Invoice downloaded successfully!');
                 setShowDownloadOptions(false);
             };
 
@@ -578,7 +816,8 @@
                 
                 setTimeout(() => {
                     newWindow.print();
-                    alert('📄 Print dialog opened! Choose "Save as PDF" in the print dialog.');
+                    // Using console.log instead of alert()
+                    console.log('📄 Print dialog opened! Choose "Save as PDF" in the print dialog.');
                 }, 500);
                 setShowDownloadOptions(false);
             };
@@ -586,6 +825,7 @@
             // Download as Excel
             const downloadAsExcel = () => {
                 const totals = calculateInvoiceTotals();
+                // Get raw entries to ensure all item details are present in spreadsheet
                 const orderEntries = Object.keys(orderData).filter(childSKU => orderData[childSKU] > 0);
                 
                 // Create workbook
@@ -614,30 +854,38 @@
                 ];
                 
                 // Products Data
-                const productHeaders = ['S.No', 'Product Code', 'Size', 'Category', 'Color', 'HSN', 'Quantity', 'MRP', 'Rate', 'Amount'];
+                // NOTE: The excel download still includes Image URL (Reference) for data integrity, but the invoice HTML no longer shows the image column.
+                const productHeaders = ['S.No', 'Parent SKU', 'Product Code', 'Size', 'Category', 'Color', 'HSN', 'Quantity', 'MRP', 'Rate', 'Amount', 'Image URL (Reference)'];
                 const productData = [productHeaders];
                 
-                orderEntries.forEach((childSKU, index) => {
-                    const quantity = orderData[childSKU];
-                    const product = products.find(p => p['Child SKU Code'] === childSKU);
-                    if (product) {
-                        const lineTotal = quantity * parseFloat(product.WSP || 0);
-                        productData.push([
-                            index + 1,
-                            product['Child SKU Code'],
-                            product.Size,
-                            product.Category,
-                            product.Color,
-                            product.HSN,
-                            quantity,
-                            `₹${product.MRP}`,
-                            `₹${product.WSP}`,
-                            `₹${lineTotal.toFixed(2)}`
-                        ]);
-                    }
+                // Re-sort and group data for accurate output mapping
+                const mappedOrderProducts = getOrderProductsWithIndex();
+
+                mappedOrderProducts.forEach((item, index) => {
+                    const { product, quantity } = item;
+                    const lineTotal = quantity * parseFloat(product.WSP || 0);
+
+                    // Add the image URL to the spreadsheet as a reference link
+                    const imageUrlRef = product.imageUrl && product.imageUrl.trim() !== '' ? product.imageUrl : 'N/A (Missing)';
+
+                    productData.push([
+                        index + 1,
+                        product['Parent SKU Code'], // Include Parent SKU for clarity
+                        product['Child SKU Code'],
+                        product.Size,
+                        product.Category,
+                        product.Color,
+                        product.HSN,
+                        quantity,
+                        `₹${product.MRP}`,
+                        `₹${product.WSP}`,
+                        `₹${lineTotal.toFixed(2)}`,
+                        imageUrlRef // Include Image URL as text reference
+                    ]);
                 });
                 
                 // Totals Data
+                const totalInWords = numberToWordsIndianSystem(totals.finalAmount);
                 const totalsData = [
                     [''],
                     ['TOTALS:'],
@@ -663,6 +911,7 @@
                 }
                 
                 totalsData.push(['FINAL AMOUNT:', `₹${totals.finalAmount.toFixed(2)}`]);
+                totalsData.push(['TOTAL IN WORDS:', totalInWords]);
                 
                 // Combine all data
                 const allData = [...headerData, ...productData, ...totalsData];
@@ -675,7 +924,8 @@
                 
                 // Download
                 XLSX.writeFile(wb, `Invoice_${invoiceData.piNumber.replace('/', '_')}_${invoiceData.customerName.replace(/[^a-zA-Z0-9]/g, '_')}.xlsx`);
-                alert('✅ Excel Invoice downloaded successfully!');
+                // Using console.log instead of alert()
+                console.log('✅ Excel Invoice downloaded successfully!');
                 setShowDownloadOptions(false);
             };
 
@@ -825,7 +1075,7 @@
                                             if (validateCustomerInfo()) {
                                                 setCurrentStep(2);
                                             } else {
-                                                alert('⚠️ Please fill in all customer details correctly');
+                                                console.error('⚠️ Please fill in all customer details correctly');
                                             }
                                         }}
                                         disabled={!validateCustomerInfo()}
@@ -1050,13 +1300,16 @@
                                         <div key={index} className="card" style={{ padding: '20px', border: '2px solid #e5e7eb', transition: 'all 0.3s' }}>
                                             <div style={{ display: 'flex', gap: '15px' }}>
                                                 <div style={{ flexShrink: 0 }}>
+                                                    {/* Image with click handler for lightbox */}
                                                     <img
                                                         src={productGroup.imageUrl || 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400&h=400&fit=crop'}
                                                         alt={productGroup.parentSKU}
-                                                        style={{ width: '80px', height: '80px', objectFit: 'cover', borderRadius: '8px', border: '2px solid #e5e7eb' }}
+                                                        style={{ width: '80px', height: '80px', objectFit: 'cover', borderRadius: '8px', border: '2px solid #e5e7eb', cursor: 'pointer' }}
                                                         onError={(e) => {
-                                                            e.target.src = 'https://images.unsplash.com/photo-1503919545889-aef636e10ad4?w=400&h=400&fit=crop';
+                                                            // Updated placeholder for main UI (Step 4)
+                                                            e.target.src = 'https://placehold.co/80x80/E0E7FF/4338CA?text=No+Image';
                                                         }}
+                                                        onClick={() => openLightbox(productGroup.imageUrl || 'https://images.unsplash.com/photo-1503919545889-aef636e10ad4?w=400&h=400&fit=crop')}
                                                     />
                                                 </div>
                                                 
@@ -1507,12 +1760,27 @@
                             </div>
                         )}
                     </div>
+
+                    {/* Image Lightbox Component (Outside main App flow) */}
+                    <div className={`lightbox-overlay ${lightbox.visible ? 'visible' : ''}`} onClick={closeLightbox}>
+                        <div className="lightbox-content" onClick={(e) => e.stopPropagation()}>
+                            <button className="lightbox-close" onClick={closeLightbox}>×</button>
+                            <img 
+                                src={lightbox.imageUrl} 
+                                alt="Expanded Product" 
+                                className="lightbox-image" 
+                                onError={(e) => e.target.src = 'https://placehold.co/800x600/CCCCCC/333333?text=Image+Load+Error'}
+                            />
+                        </div>
+                    </div>
                 </div>
             );
         }
 
-        // Render the app
-        ReactDOM.render(<App />, document.getElementById('root'));
+        // Fix the deprecated ReactDOM.render API call
+        const container = document.getElementById('root');
+        const root = ReactDOM.createRoot(container);
+        root.render(<App />);
     </script>
 </body>
 </html>
