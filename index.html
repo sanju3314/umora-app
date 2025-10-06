@@ -646,6 +646,7 @@
                 const orderProducts = getOrderProductsWithIndex();
                 
                 const qrCodeUrl = "https://cdn.shopify.com/s/files/1/0612/8861/1913/files/Umora_UP_QR_200_pixel_x_205_pixel.jpg?v=1759408517";
+                const signatureImageUrl = "https://cdn.shopify.com/s/files/1/0612/8861/1913/files/Stamp_signature_100_x_100_pixels.png?v=1759754504";
                 
                 // Total amount in words
                 const totalInWords = numberToWordsIndianSystem(totals.finalAmount);
@@ -666,11 +667,34 @@
         .totals { text-align: right; margin: 20px 0; }
         .total-line { margin: 5px 0; }
         .final-total { font-weight: bold; font-size: 14px; border-top: 2px solid #000; padding-top: 10px; }
-        .footer { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 30px; }
-        .qr-section { margin-top: 30px; display: flex; align-items: flex-start; }
-        .qr-details { margin-left: 20px; }
         .highlight { background-color: #ffffc0; padding: 5px; border-radius: 3px; } /* Highlight style */
-        @media print { body { margin: 10px; } }
+        
+        /* New styles for footer grid alignment */
+        .invoice-footer-grid {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end; /* Align contents to the bottom of the container */
+            margin-top: 30px;
+            width: 100%;
+        }
+        .qr-terms-block {
+            width: 50%;
+            text-align: left;
+            padding-right: 20px;
+        }
+        .signature-block {
+            width: 50%;
+            text-align: right;
+        }
+
+        @media print { 
+            body { margin: 10px; }
+            .invoice-footer-grid {
+                /* Ensure it stays on one row for print */
+                page-break-before: auto !important;
+                page-break-after: auto !important;
+            }
+        }
     </style>
 </head>
 <body>
@@ -765,26 +789,36 @@
     </div>
     
     <!-- Total in Words (Highlighted) -->
-    <div style="margin-top: 15px; font-size: 12px; font-weight: bold;">
+    <div style="margin-top: 15px; font-size: 12px; font-weight: bold; margin-bottom: 30px;">
         Total Invoice Value in Words: 
         <span class="highlight">${totalInWords}</span>
     </div>
 
-    <!-- QR Code Section (Left Aligned and Bold Text) -->
-    <div style="margin-top: 30px; text-align: left;">
-        <img src="${qrCodeUrl}" alt="Payment QR Code" style="width: 200px; height: 205px; border: 1px solid #ddd; padding: 5px; display: block;">
-        <div style="font-size: 10px; color: #555; margin-top: 5px;"><strong>Scan to Pay via UPI</strong></div>
-    </div>
+    <!-- QR Code and Signature Section (Aligned in a row) -->
+    <div class="invoice-footer-grid">
+        <!-- Left Block: QR Code and Terms -->
+        <div class="qr-terms-block">
+            <!-- QR Code Section -->
+            <div style="margin-bottom: 20px;">
+                <img src="${qrCodeUrl}" alt="Payment QR Code" style="width: 200px; height: 205px; border: 1px solid #ddd; padding: 5px; display: block;">
+                <div style="font-size: 10px; color: #555; margin-top: 5px;"><strong>Scan to Pay via UPI</strong></div>
+            </div>
 
-    <!-- Updated Terms and Conditions -->
-    <div style="margin-top: 30px; font-weight: bold;">
-        Terms and Conditions:<br>
-        THIS IS A COMPUTER GENERATED PI SIGNATURE IS NOT NEEDED<br>
-        PLEASE MAKE THE PAYMENT AND UPDATE US WITH A SCREEN SHOT
-    </div>
+            <!-- Updated Terms and Conditions -->
+            <div style="font-weight: bold;">
+                Terms and Conditions:<br>
+                PLEASE MAKE THE PAYMENT AND UPDATE US WITH A SCREEN SHOT
+            </div>
+        </div>
 
-    <div style="text-align: right; margin-top: 40px; font-weight: bold;">
-        Authorized Signatory
+        <!-- Right Block: Signature and Signatory -->
+        <div class="signature-block">
+            <!-- Signature Image and Authorized Signatory (All Caps) -->
+            <div style="font-weight: bold; display: inline-block; text-align: center;">
+                <img src="${signatureImageUrl}" alt="Authorized Signature" style="width: 150px; height: auto; display: block; margin-left: auto;">
+                <div style="margin-top: 5px;">AUTHORIZED SIGNATORY</div>
+            </div>
+        </div>
     </div>
 </body>
 </html>`;
@@ -932,833 +966,835 @@
             const { totalItems, totalValue } = orderSummary;
 
             return (
-                <div style={{ padding: '20px', minHeight: '100vh' }}>
-                    <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
-                        {/* Header */}
-                        <div className="card" style={{ padding: '40px', marginBottom: '30px', textAlign: 'center' }}>
-                            <h1 style={{ fontSize: '32px', fontWeight: 'bold', background: 'linear-gradient(to right, #3b82f6, #8b5cf6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', marginBottom: '30px' }}>
-                                UMORA Product Catalog Management System
-                            </h1>
-                            
-                            {/* Progress Steps */}
-                            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '15px', flexWrap: 'wrap' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    <div className={`progress-step ${currentStep >= 1 ? (currentStep > 1 ? 'completed' : 'active') : 'inactive'}`}>
-                                        {currentStep > 1 ? '✓' : '1'}
-                                    </div>
-                                    <span style={{ fontWeight: 'bold' }}>Customer</span>
-                                </div>
+                <>
+                    <div style={{ padding: '20px', minHeight: '100vh' }}>
+                        <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+                            {/* Header */}
+                            <div className="card" style={{ padding: '40px', marginBottom: '30px', textAlign: 'center' }}>
+                                <h1 style={{ fontSize: '32px', fontWeight: 'bold', background: 'linear-gradient(to right, #3b82f6, #8b5cf6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', marginBottom: '30px' }}>
+                                    UMORA Product Catalog Management System
+                                </h1>
                                 
-                                <span style={{ color: '#9ca3af' }}>→</span>
-                                
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    <div className={`progress-step ${currentStep >= 2 ? (currentStep > 2 ? 'completed' : 'active') : 'inactive'}`}>
-                                        {currentStep > 2 ? '✓' : '2'}
-                                    </div>
-                                    <span style={{ fontWeight: 'bold' }}>Catalog</span>
-                                </div>
-                                
-                                <span style={{ color: '#9ca3af' }}>→</span>
-                                
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    <div className={`progress-step ${currentStep >= 3 ? (currentStep > 3 ? 'completed' : 'active') : 'inactive'}`}>
-                                        {currentStep > 3 ? '✓' : '3'}
-                                    </div>
-                                    <span style={{ fontWeight: 'bold' }}>Inventory</span>
-                                </div>
-                                
-                                <span style={{ color: '#9ca3af' }}>→</span>
-                                
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    <div className={`progress-step ${currentStep >= 4 ? (currentStep > 4 ? 'completed' : 'active') : 'inactive'}`}>
-                                        {currentStep > 4 ? '✓' : '4'}
-                                    </div>
-                                    <span style={{ fontWeight: 'bold' }}>Orders</span>
-                                </div>
-                                
-                                <span style={{ color: '#9ca3af' }}>→</span>
-                                
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    <div className={`progress-step ${currentStep >= 5 ? 'active' : 'inactive'}`}>
-                                        5
-                                    </div>
-                                    <span style={{ fontWeight: 'bold' }}>Invoice</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Step 1: Customer Details */}
-                        {currentStep === 1 && (
-                            <div className="card" style={{ padding: '40px' }}>
-                                <h2 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '30px', display: 'flex', alignItems: 'center' }}>
-                                    👤 Customer Information
-                                </h2>
-                                
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
-                                    <div>
-                                        <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px' }}>📅 Date</label>
-                                        <input
-                                            type="date"
-                                            className="input-field"
-                                            value={customerData.date}
-                                            onChange={(e) => setCustomerData({...customerData, date: e.target.value})}
-                                        />
+                                {/* Progress Steps */}
+                                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '15px', flexWrap: 'wrap' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <div className={`progress-step ${currentStep >= 1 ? (currentStep > 1 ? 'completed' : 'active') : 'inactive'}`}>
+                                            {currentStep > 1 ? '✓' : '1'}
+                                        </div>
+                                        <span style={{ fontWeight: 'bold' }}>Customer</span>
                                     </div>
                                     
-                                    <div>
-                                        <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px' }}>👤 Customer Name *</label>
-                                        <input
-                                            type="text"
-                                            className="input-field"
-                                            value={customerData.customerName}
-                                            onChange={(e) => setCustomerData({...customerData, customerName: e.target.value})}
-                                            placeholder="Enter customer name"
-                                        />
+                                    <span style={{ color: '#9ca3af' }}>→</span>
+                                    
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <div className={`progress-step ${currentStep >= 2 ? (currentStep > 2 ? 'completed' : 'active') : 'inactive'}`}>
+                                            {currentStep > 2 ? '✓' : '2'}
+                                        </div>
+                                        <span style={{ fontWeight: 'bold' }}>Catalog</span>
                                     </div>
                                     
-                                    <div>
-                                        <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px' }}>📱 Mobile Number * (10 digits)</label>
-                                        <input
-                                            type="tel"
-                                            className="input-field"
-                                            value={customerData.customerMobile}
-                                            onChange={(e) => {
-                                                const value = e.target.value.replace(/\D/g, '');
-                                                if (value.length <= 10) {
-                                                    setCustomerData({...customerData, customerMobile: value});
-                                                }
-                                            }}
-                                            placeholder="Enter 10-digit mobile number"
-                                            maxLength="10"
-                                        />
-                                        {customerData.customerMobile && !/^\d{10}$/.test(customerData.customerMobile) && (
-                                            <p style={{ color: '#ef4444', fontSize: '14px', marginTop: '5px' }}>Please enter exactly 10 digits</p>
-                                        )}
+                                    <span style={{ color: '#9ca3af' }}>→</span>
+                                    
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <div className={`progress-step ${currentStep >= 3 ? (currentStep > 3 ? 'completed' : 'active') : 'inactive'}`}>
+                                            {currentStep > 3 ? '✓' : '3'}
+                                        </div>
+                                        <span style={{ fontWeight: 'bold' }}>Inventory</span>
                                     </div>
                                     
-                                    <div>
-                                        <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px' }}>🏙️ City *</label>
-                                        <input
-                                            type="text"
-                                            className="input-field"
-                                            value={customerData.city}
-                                            onChange={(e) => setCustomerData({...customerData, city: e.target.value})}
-                                            placeholder="Enter city"
-                                        />
+                                    <span style={{ color: '#9ca3af' }}>→</span>
+                                    
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <div className={`progress-step ${currentStep >= 4 ? (currentStep > 4 ? 'completed' : 'active') : 'inactive'}`}>
+                                            {currentStep > 4 ? '✓' : '4'}
+                                        </div>
+                                        <span style={{ fontWeight: 'bold' }}>Orders</span>
                                     </div>
                                     
-                                    <div>
-                                        <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px' }}>📍 Pincode * (6 digits)</label>
-                                        <input
-                                            type="text"
-                                            className="input-field"
-                                            value={customerData.pincode}
-                                            onChange={(e) => {
-                                                const value = e.target.value.replace(/\D/g, '');
-                                                if (value.length <= 6) {
-                                                    setCustomerData({...customerData, pincode: value});
-                                                }
-                                            }}
-                                            placeholder="Enter 6-digit pincode"
-                                            maxLength="6"
-                                        />
-                                        {customerData.pincode && !/^\d{6}$/.test(customerData.pincode) && (
-                                            <p style={{ color: '#ef4444', fontSize: '14px', marginTop: '5px' }}>Please enter exactly 6 digits</p>
-                                        )}
+                                    <span style={{ color: '#9ca3af' }}>→</span>
+                                    
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <div className={`progress-step ${currentStep >= 5 ? 'active' : 'inactive'}`}>
+                                            5
+                                        </div>
+                                        <span style={{ fontWeight: 'bold' }}>Invoice</span>
                                     </div>
-                                </div>
-                                
-                                <div style={{ marginTop: '30px', textAlign: 'right' }}>
-                                    <button
-                                        className="btn-primary"
-                                        onClick={() => {
-                                            if (validateCustomerInfo()) {
-                                                setCurrentStep(2);
-                                            } else {
-                                                console.error('⚠️ Please fill in all customer details correctly');
-                                            }
-                                        }}
-                                        disabled={!validateCustomerInfo()}
-                                        style={{ opacity: validateCustomerInfo() ? 1 : 0.5 }}
-                                    >
-                                        Next Step →
-                                    </button>
                                 </div>
                             </div>
-                        )}
 
-                        {/* Step 2: Upload Product Catalog */}
-                        {currentStep === 2 && (
-                            <div className="card" style={{ padding: '40px' }}>
-                                <h2 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '30px' }}>
-                                    📁 Upload Product Catalog
-                                </h2>
-                                
-                                <div style={{ border: '2px dashed #d1d5db', borderRadius: '12px', padding: '60px', textAlign: 'center', background: 'linear-gradient(to bottom right, #f9fafb, #f3f4f6)' }}>
-                                    <input
-                                        type="file"
-                                        accept=".csv"
-                                        onChange={handleCSVUpload}
-                                        ref={fileInputRef}
-                                        style={{ display: 'none' }}
-                                    />
+                            {/* Step 1: Customer Details */}
+                            {currentStep === 1 && (
+                                <div className="card" style={{ padding: '40px' }}>
+                                    <h2 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '30px', display: 'flex', alignItems: 'center' }}>
+                                        👤 Customer Information
+                                    </h2>
                                     
-                                    <div style={{ width: '80px', height: '80px', background: 'linear-gradient(to right, #3b82f6, #8b5cf6)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', color: 'white', fontSize: '32px' }}>
-                                        📄
-                                    </div>
-                                    
-                                    <h3 style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '10px' }}>
-                                        {uploadedCSV ? `✅ Uploaded: ${uploadedCSV}` : 'Upload your product catalog CSV'}
-                                    </h3>
-                                    
-                                    <p style={{ color: '#6b7280', marginBottom: '30px' }}>
-                                        {uploadedCSV 
-                                            ? `${products.length} products loaded across ${categories.length} categories` 
-                                            : 'CSV should contain: Parent SKU Code, Child SKU Code, Color, Size, Category, MRP, WSP, Image URL, HSN'
-                                        }
-                                    </p>
-                                    
-                                    <button
-                                        className="btn-primary"
-                                        onClick={() => fileInputRef.current?.click()}
-                                    >
-                                        📁 {uploadedCSV ? 'Change File' : 'Upload CSV'}
-                                    </button>
-                                </div>
-                                
-                                {uploadedCSV && (
-                                    <div style={{ marginTop: '30px', display: 'flex', justifyContent: 'space-between' }}>
-                                        <button
-                                            className="btn-secondary"
-                                            onClick={() => setCurrentStep(1)}
-                                        >
-                                            ← Back
-                                        </button>
-                                        <button
-                                            className="btn-primary"
-                                            onClick={() => setCurrentStep(3)}
-                                        >
-                                            Next: Inventory Data →
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
-                        {/* Step 3: Upload Inventory */}
-                        {currentStep === 3 && (
-                            <div className="card" style={{ padding: '40px' }}>
-                                <h2 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '30px' }}>
-                                    📦 Upload Inventory Data
-                                </h2>
-                                
-                                <div style={{ border: '2px dashed #22c55e', borderRadius: '12px', padding: '60px', textAlign: 'center', background: 'linear-gradient(to bottom right, #f0fdf4, #dcfce7)' }}>
-                                    <input
-                                        type="file"
-                                        accept=".csv"
-                                        onChange={handleInventoryUpload}
-                                        ref={inventoryFileInputRef}
-                                        style={{ display: 'none' }}
-                                    />
-                                    
-                                    <div style={{ width: '80px', height: '80px', background: 'linear-gradient(to right, #22c55e, #16a34a)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', color: 'white', fontSize: '32px' }}>
-                                        📦
-                                    </div>
-                                    
-                                    <h3 style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '10px' }}>
-                                        {uploadedInventoryCSV ? `✅ Inventory Loaded: ${uploadedInventoryCSV}` : 'Upload inventory CSV from your system'}
-                                    </h3>
-                                    
-                                    <p style={{ color: '#6b7280', marginBottom: '30px' }}>
-                                        {uploadedInventoryCSV 
-                                            ? `${Object.keys(inventoryData).length} SKUs loaded from inventory system` 
-                                            : 'CSV should contain: sku (or Child SKU Code), old_quantity (or quantity/stock)'
-                                        }
-                                    </p>
-                                    
-                                    <button
-                                        className="btn-primary"
-                                        onClick={() => inventoryFileInputRef.current?.click()}
-                                        style={{ background: 'linear-gradient(to right, #22c55e, #16a34a)' }}
-                                    >
-                                        📦 {uploadedInventoryCSV ? 'Change Inventory File' : 'Upload Inventory CSV'}
-                                    </button>
-                                </div>
-                                
-                                {uploadedInventoryCSV && (
-                                    <>
-                                        {/* Inventory Statistics */}
-                                        <div style={{ marginTop: '30px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px' }}>
-                                            <div style={{ background: '#dbeafe', padding: '20px', borderRadius: '12px', border: '1px solid #93c5fd' }}>
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                    <div>
-                                                        <p style={{ color: '#1d4ed8', fontWeight: 'bold', margin: '0 0 5px 0' }}>Total Product SKUs</p>
-                                                        <p style={{ fontSize: '24px', fontWeight: 'bold', color: '#1e40af', margin: 0 }}>{inventoryStats.totalSKUs}</p>
-                                                    </div>
-                                                    <span style={{ fontSize: '24px' }}>📄</span>
-                                                </div>
-                                            </div>
-                                            
-                                            <div style={{ background: '#dcfce7', padding: '20px', borderRadius: '12px', border: '1px solid #86efac' }}>
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                    <div>
-                                                        <p style={{ color: '#16a34a', fontWeight: 'bold', margin: '0 0 5px 0' }}>Matched with Inventory</p>
-                                                        <p style={{ fontSize: '24px', fontWeight: 'bold', color: '#15803d', margin: 0 }}>{inventoryStats.matchedSKUs}</p>
-                                                    </div>
-                                                    <span style={{ fontSize: '24px' }}>✅</span>
-                                                </div>
-                                            </div>
-                                            
-                                            <div style={{ background: '#fed7aa', padding: '20px', borderRadius: '12px', border: '1px solid #fdba74' }}>
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                    <div>
-                                                        <p style={{ color: '#c2410c', fontWeight: 'bold', margin: '0 0 5px 0' }}>Unknown Stock</p>
-                                                        <p style={{ fontSize: '24px', fontWeight: 'bold', color: '#9a3412', margin: 0 }}>{inventoryStats.unknownSKUs}</p>
-                                                    </div>
-                                                    <span style={{ fontSize: '24px' }}>⚠️</span>
-                                                </div>
-                                            </div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
+                                        <div>
+                                            <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px' }}>📅 Date</label>
+                                            <input
+                                                type="date"
+                                                className="input-field"
+                                                value={customerData.date}
+                                                onChange={(e) => setCustomerData({...customerData, date: e.target.value})}
+                                            />
                                         </div>
                                         
+                                        <div>
+                                            <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px' }}>👤 Customer Name *</label>
+                                            <input
+                                                type="text"
+                                                className="input-field"
+                                                value={customerData.customerName}
+                                                onChange={(e) => setCustomerData({...customerData, customerName: e.target.value})}
+                                                placeholder="Enter customer name"
+                                            />
+                                        </div>
+                                        
+                                        <div>
+                                            <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px' }}>📱 Mobile Number * (10 digits)</label>
+                                            <input
+                                                type="tel"
+                                                className="input-field"
+                                                value={customerData.customerMobile}
+                                                onChange={(e) => {
+                                                    const value = e.target.value.replace(/\D/g, '');
+                                                    if (value.length <= 10) {
+                                                        setCustomerData({...customerData, customerMobile: value});
+                                                    }
+                                                }}
+                                                placeholder="Enter 10-digit mobile number"
+                                                maxLength="10"
+                                            />
+                                            {customerData.customerMobile && !/^\d{10}$/.test(customerData.customerMobile) && (
+                                                <p style={{ color: '#ef4444', fontSize: '14px', marginTop: '5px' }}>Please enter exactly 10 digits</p>
+                                            )}
+                                        </div>
+                                        
+                                        <div>
+                                            <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px' }}>🏙️ City *</label>
+                                            <input
+                                                type="text"
+                                                className="input-field"
+                                                value={customerData.city}
+                                                onChange={(e) => setCustomerData({...customerData, city: e.target.value})}
+                                                placeholder="Enter city"
+                                            />
+                                        </div>
+                                        
+                                        <div>
+                                            <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px' }}>📍 Pincode * (6 digits)</label>
+                                            <input
+                                                type="text"
+                                                className="input-field"
+                                                value={customerData.pincode}
+                                                onChange={(e) => {
+                                                    const value = e.target.value.replace(/\D/g, '');
+                                                    if (value.length <= 6) {
+                                                        setCustomerData({...customerData, pincode: value});
+                                                    }
+                                                }}
+                                                placeholder="Enter 6-digit pincode"
+                                                maxLength="6"
+                                            />
+                                            {customerData.pincode && !/^\d{6}$/.test(customerData.pincode) && (
+                                                <p style={{ color: '#ef4444', fontSize: '14px', marginTop: '5px' }}>Please enter exactly 6 digits</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                    
+                                    <div style={{ marginTop: '30px', textAlign: 'right' }}>
+                                        <button
+                                            className="btn-primary"
+                                            onClick={() => {
+                                                if (validateCustomerInfo()) {
+                                                    setCurrentStep(2);
+                                                } else {
+                                                    console.error('⚠️ Please fill in all customer details correctly');
+                                                }
+                                            }}
+                                            disabled={!validateCustomerInfo()}
+                                            style={{ opacity: validateCustomerInfo() ? 1 : 0.5 }}
+                                        >
+                                            Next Step →
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Step 2: Upload Product Catalog */}
+                            {currentStep === 2 && (
+                                <div className="card" style={{ padding: '40px' }}>
+                                    <h2 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '30px' }}>
+                                        📁 Upload Product Catalog
+                                    </h2>
+                                    
+                                    <div style={{ border: '2px dashed #d1d5db', borderRadius: '12px', padding: '60px', textAlign: 'center', background: 'linear-gradient(to bottom right, #f9fafb, #f3f4f6)' }}>
+                                        <input
+                                            type="file"
+                                            accept=".csv"
+                                            onChange={handleCSVUpload}
+                                            ref={fileInputRef}
+                                            style={{ display: 'none' }}
+                                        />
+                                        
+                                        <div style={{ width: '80px', height: '80px', background: 'linear-gradient(to right, #3b82f6, #8b5cf6)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', color: 'white', fontSize: '32px' }}>
+                                            📄
+                                        </div>
+                                        
+                                        <h3 style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '10px' }}>
+                                            {uploadedCSV ? `✅ Uploaded: ${uploadedCSV}` : 'Upload your product catalog CSV'}
+                                        </h3>
+                                        
+                                        <p style={{ color: '#6b7280', marginBottom: '30px' }}>
+                                            {uploadedCSV 
+                                                ? `${products.length} products loaded across ${categories.length} categories` 
+                                                : 'CSV should contain: Parent SKU Code, Child SKU Code, Color, Size, Category, MRP, WSP, Image URL, HSN'
+                                            }
+                                        </p>
+                                        
+                                        <button
+                                            className="btn-primary"
+                                            onClick={() => fileInputRef.current?.click()}
+                                        >
+                                            📁 {uploadedCSV ? 'Change File' : 'Upload CSV'}
+                                        </button>
+                                    </div>
+                                    
+                                    {uploadedCSV && (
                                         <div style={{ marginTop: '30px', display: 'flex', justifyContent: 'space-between' }}>
                                             <button
                                                 className="btn-secondary"
-                                                onClick={() => setCurrentStep(2)}
+                                                onClick={() => setCurrentStep(1)}
                                             >
                                                 ← Back
                                             </button>
                                             <button
                                                 className="btn-primary"
-                                                onClick={() => setCurrentStep(4)}
-                                                style={{ background: 'linear-gradient(to right, #22c55e, #16a34a)' }}
+                                                onClick={() => setCurrentStep(3)}
                                             >
-                                                Start Ordering →
+                                                Next: Inventory Data →
                                             </button>
                                         </div>
-                                    </>
-                                )}
-                            </div>
-                        )}
+                                    )}
+                                </div>
+                            )}
 
-                        {/* Step 4: Product Selection */}
-                        {currentStep === 4 && (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                                {/* Category Navigation */}
-                                <div className="card" style={{ padding: '30px' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                                        <h2 style={{ fontSize: '24px', fontWeight: 'bold', background: 'linear-gradient(to right, #3b82f6, #8b5cf6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-                                            {categories[currentCategory]} Products
-                                        </h2>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                                            <span style={{ background: '#f3f4f6', padding: '5px 15px', borderRadius: '20px', fontSize: '14px' }}>
-                                                Category {currentCategory + 1} of {categories.length}
-                                            </span>
-                                            <div style={{ display: 'flex', gap: '5px' }}>
-                                                <button
-                                                    className="btn-secondary"
-                                                    onClick={() => setCurrentCategory(Math.max(0, currentCategory - 1))}
-                                                    disabled={currentCategory === 0}
-                                                    style={{ padding: '8px', opacity: currentCategory === 0 ? 0.5 : 1 }}
-                                                >
-                                                    ←
-                                                </button>
-                                                <button
-                                                    className="btn-secondary"
-                                                    onClick={() => setCurrentCategory(Math.min(categories.length - 1, currentCategory + 1))}
-                                                    disabled={currentCategory === categories.length - 1}
-                                                    style={{ padding: '8px', opacity: currentCategory === categories.length - 1 ? 0.5 : 1 }}
-                                                >
-                                                    →
-                                                </button>
-                                            </div>
+                            {/* Step 3: Upload Inventory */}
+                            {currentStep === 3 && (
+                                <div className="card" style={{ padding: '40px' }}>
+                                    <h2 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '30px' }}>
+                                        📦 Upload Inventory Data
+                                    </h2>
+                                    
+                                    <div style={{ border: '2px dashed #22c55e', borderRadius: '12px', padding: '60px', textAlign: 'center', background: 'linear-gradient(to bottom right, #f0fdf4, #dcfce7)' }}>
+                                        <input
+                                            type="file"
+                                            accept=".csv"
+                                            onChange={handleInventoryUpload}
+                                            ref={inventoryFileInputRef}
+                                            style={{ display: 'none' }}
+                                        />
+                                        
+                                        <div style={{ width: '80px', height: '80px', background: 'linear-gradient(to right, #22c55e, #16a34a)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', color: 'white', fontSize: '32px' }}>
+                                            📦
                                         </div>
+                                        
+                                        <h3 style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '10px' }}>
+                                            {uploadedInventoryCSV ? `✅ Inventory Loaded: ${uploadedInventoryCSV}` : 'Upload inventory CSV from your system'}
+                                        </h3>
+                                        
+                                        <p style={{ color: '#6b7280', marginBottom: '30px' }}>
+                                            {uploadedInventoryCSV 
+                                                ? `${Object.keys(inventoryData).length} SKUs loaded from inventory system` 
+                                                : 'CSV should contain: sku (or Child SKU Code), old_quantity (or quantity/stock)'
+                                            }
+                                        </p>
+                                        
+                                        <button
+                                            className="btn-primary"
+                                            onClick={() => inventoryFileInputRef.current?.click()}
+                                            style={{ background: 'linear-gradient(to right, #22c55e, #16a34a)' }}
+                                        >
+                                            📦 {uploadedInventoryCSV ? 'Change Inventory File' : 'Upload Inventory CSV'}
+                                        </button>
                                     </div>
                                     
-                                    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                                        {categories.map((category, index) => (
-                                            <button
-                                                key={index}
-                                                onClick={() => setCurrentCategory(index)}
-                                                className={currentCategory === index ? 'btn-primary' : 'btn-secondary'}
-                                                style={{ 
-                                                    padding: '8px 16px',
-                                                    background: currentCategory === index 
-                                                        ? 'linear-gradient(to right, #8b5cf6, #7c3aed)' 
-                                                        : '#f3f4f6',
-                                                    color: currentCategory === index ? 'white' : '#374151'
-                                                }}
-                                            >
-                                                {category}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                {/* Products Grid */}
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(500px, 1fr))', gap: '20px' }}>
-                                    {groupProductsByParentAndVariant(getCurrentCategoryProducts()).map((productGroup, index) => (
-                                        <div key={index} className="card" style={{ padding: '20px', border: '2px solid #e5e7eb', transition: 'all 0.3s' }}>
-                                            <div style={{ display: 'flex', gap: '15px' }}>
-                                                <div style={{ flexShrink: 0 }}>
-                                                    {/* Image with click handler for lightbox */}
-                                                    <img
-                                                        src={productGroup.imageUrl || 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400&h=400&fit=crop'}
-                                                        alt={productGroup.parentSKU}
-                                                        style={{ width: '80px', height: '80px', objectFit: 'cover', borderRadius: '8px', border: '2px solid #e5e7eb', cursor: 'pointer' }}
-                                                        onError={(e) => {
-                                                            // Updated placeholder for main UI (Step 4)
-                                                            e.target.src = 'https://placehold.co/80x80/E0E7FF/4338CA?text=No+Image';
-                                                        }}
-                                                        onClick={() => openLightbox(productGroup.imageUrl || 'https://images.unsplash.com/photo-1503919545889-aef636e10ad4?w=400&h=400&fit=crop')}
-                                                    />
+                                    {uploadedInventoryCSV && (
+                                        <>
+                                            {/* Inventory Statistics */}
+                                            <div style={{ marginTop: '30px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px' }}>
+                                                <div style={{ background: '#dbeafe', padding: '20px', borderRadius: '12px', border: '1px solid #93c5fd' }}>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                        <div>
+                                                            <p style={{ color: '#1d4ed8', fontWeight: 'bold', margin: '0 0 5px 0' }}>Total Product SKUs</p>
+                                                            <p style={{ fontSize: '24px', fontWeight: 'bold', color: '#1e40af', margin: 0 }}>{inventoryStats.totalSKUs}</p>
+                                                        </div>
+                                                        <span style={{ fontSize: '24px' }}>📄</span>
+                                                    </div>
                                                 </div>
                                                 
-                                                <div style={{ flex: 1 }}>
-                                                    <h3 style={{ fontSize: '18px', fontWeight: 'bold', background: 'linear-gradient(to right, #3b82f6, #8b5cf6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', margin: '0 0 5px 0' }}>
-                                                        {productGroup.parentSKU}
-                                                    </h3>
-                                                    <p style={{ fontSize: '14px', color: '#6b7280', margin: '0 0 5px 0' }}>Color: {productGroup.color}</p>
-                                                    <p style={{ fontSize: '14px', color: '#6b7280', margin: '0 0 5px 0' }}>Variant: {productGroup.variant}</p>
-                                                    <p style={{ fontSize: '14px', fontWeight: 'bold', color: '#dc2626', margin: '0 0 15px 0' }}>MRP: ₹{productGroup.mrp}</p>
-                                                    
-                                                    <div>
-                                                        <h4 style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '10px' }}>Available Sizes:</h4>
-                                                        {productGroup.sizes.map((sizeInfo, sizeIndex) => {
-                                                            const currentQty = orderData[sizeInfo.childSKU] || 0;
-                                                            const lineTotal = currentQty * parseFloat(sizeInfo.wsp || 0);
-                                                            const stockInfo = getStockInfo(sizeInfo.childSKU);
-                                                            
-                                                            return (
-                                                                <div key={sizeIndex} className={stockInfo.className} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px', borderRadius: '8px', marginBottom: '8px' }}>
-                                                                    <div style={{ flex: 1 }}>
-                                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
-                                                                            <span style={{ fontWeight: 'bold' }}>{sizeInfo.size}</span>
-                                                                            <div style={{ display: 'flex', gap: '8px' }}>
-                                                                                <span style={{ background: '#dcfce7', color: '#166534', padding: '2px 8px', borderRadius: '4px', fontSize: '12px' }}>
-                                                                                    WSP: ₹{sizeInfo.wsp}
-                                                                                </span>
-                                                                                <span style={{ fontWeight: 'bold', fontSize: '12px' }}>
-                                                                                    {stockInfo.quantity === null ? 'Unknown' : `Stock: ${stockInfo.quantity}`}
-                                                                                </span>
-                                                                            </div>
-                                                                        </div>
-                                                                        {currentQty > 0 && (
-                                                                            <div style={{ fontSize: '12px', color: '#2563eb', fontWeight: 'bold' }}>
-                                                                                Total: ₹{lineTotal.toFixed(2)}
-                                                                            </div>
-                                                                        )}
-                                                                    </div>
-                                                                    <div style={{ marginLeft: '10px' }}>
-                                                                        <input
-                                                                            type="number"
-                                                                            min="0"
-                                                                            max={stockInfo.quantity || 9999}
-                                                                            step="1"
-                                                                            value={currentQty === 0 ? '' : currentQty}
-                                                                            onChange={(e) => {
-                                                                                handleQuantityChange(sizeInfo.childSKU, e.target.value);
-                                                                            }}
-                                                                            style={{ width: '70px', padding: '5px', border: '2px solid #d1d5db', borderRadius: '6px', textAlign: 'center' }}
-                                                                            placeholder="0"
-                                                                        />
-                                                                        {stockInfo.quantity !== null && (
-                                                                            <p style={{ fontSize: '10px', color: '#6b7280', textAlign: 'center', margin: '2px 0 0 0' }}>
-                                                                                Max: {stockInfo.quantity}
-                                                                            </p>
-                                                                        )}
-                                                                    </div>
-                                                                </div>
-                                                            );
-                                                        })}
+                                                <div style={{ background: '#dcfce7', padding: '20px', borderRadius: '12px', border: '1px solid #86efac' }}>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                        <div>
+                                                            <p style={{ color: '#16a34a', fontWeight: 'bold', margin: '0 0 5px 0' }}>Matched with Inventory</p>
+                                                            <p style={{ fontSize: '24px', fontWeight: 'bold', color: '#15803d', margin: 0 }}>{inventoryStats.matchedSKUs}</p>
+                                                        </div>
+                                                        <span style={{ fontSize: '24px' }}>✅</span>
+                                                    </div>
+                                                </div>
+                                                
+                                                <div style={{ background: '#fed7aa', padding: '20px', borderRadius: '12px', border: '1px solid #fdba74' }}>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                        <div>
+                                                            <p style={{ color: '#c2410c', fontWeight: 'bold', margin: '0 0 5px 0' }}>Unknown Stock</p>
+                                                            <p style={{ fontSize: '24px', fontWeight: 'bold', color: '#9a3412', margin: 0 }}>{inventoryStats.unknownSKUs}</p>
+                                                        </div>
+                                                        <span style={{ fontSize: '24px' }}>⚠️</span>
                                                     </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                    ))}
-                                </div>
-
-                                {/* Order Summary */}
-                                <div className="card" style={{ padding: '30px' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <div style={{ display: 'flex', gap: '20px' }}>
-                                            <div style={{ background: 'linear-gradient(to right, #3b82f6, #1d4ed8)', padding: '15px 25px', borderRadius: '12px', color: 'white' }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                    <span style={{ fontSize: '20px' }}>📦</span>
-                                                    <span style={{ fontSize: '18px', fontWeight: 'bold' }}>Total Qty: {totalItems}</span>
-                                                </div>
-                                            </div>
                                             
-                                            <div style={{ background: 'linear-gradient(to right, #22c55e, #15803d)', padding: '15px 25px', borderRadius: '12px', color: 'white' }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                    <span style={{ fontSize: '20px', fontWeight: 'bold' }}>₹</span>
-                                                    <span style={{ fontSize: '18px', fontWeight: 'bold' }}>{totalValue}</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        
-                                        <div style={{ display: 'flex', gap: '15px' }}>
-                                            <button
-                                                className="btn-secondary"
-                                                onClick={() => setCurrentStep(3)}
-                                            >
-                                                ← Back
-                                            </button>
-                                            <button
-                                                className="btn-primary"
-                                                onClick={proceedToInvoice}
-                                                disabled={totalItems === 0}
-                                                style={{ 
-                                                    background: totalItems > 0 
-                                                        ? 'linear-gradient(to right, #f97316, #ea580c)' 
-                                                        : '#9ca3af',
-                                                    opacity: totalItems === 0 ? 0.5 : 1
-                                                }}
-                                            >
-                                                📄 Generate Invoice ({totalItems} items)
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Step 5: Invoice Generation */}
-                        {currentStep === 5 && (
-                            <div className="card" style={{ padding: '40px' }}>
-                                <h2 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '30px' }}>
-                                    🏢 Generate Proforma Invoice
-                                </h2>
-                                
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '30px' }}>
-                                    {/* Customer Details */}
-                                    <div>
-                                        <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '20px', borderBottom: '2px solid #e5e7eb', paddingBottom: '10px' }}>Customer Details</h3>
-                                        
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                                            <div>
-                                                <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>Customer Name *</label>
-                                                <input
-                                                    type="text"
-                                                    className="input-field"
-                                                    value={invoiceData.customerName}
-                                                    onChange={(e) => setInvoiceData({...invoiceData, customerName: e.target.value})}
-                                                />
-                                            </div>
-                                            
-                                            <div>
-                                                <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>Address Line 1 *</label>
-                                                <input
-                                                    type="text"
-                                                    className="input-field"
-                                                    value={invoiceData.addressLine1}
-                                                    onChange={(e) => setInvoiceData({...invoiceData, addressLine1: e.target.value})}
-                                                    placeholder="Street address, building name"
-                                                />
-                                            </div>
-                                            
-                                            <div>
-                                                <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>Address Line 2</label>
-                                                <input
-                                                    type="text"
-                                                    className="input-field"
-                                                    value={invoiceData.addressLine2}
-                                                    onChange={(e) => setInvoiceData({...invoiceData, addressLine2: e.target.value})}
-                                                    placeholder="Area, landmark"
-                                                />
-                                            </div>
-                                            
-                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                                                <div>
-                                                    <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>City *</label>
-                                                    <input
-                                                        type="text"
-                                                        className="input-field"
-                                                        value={invoiceData.city}
-                                                        onChange={(e) => setInvoiceData({...invoiceData, city: e.target.value})}
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>Pincode *</label>
-                                                    <input
-                                                        type="text"
-                                                        className="input-field"
-                                                        value={invoiceData.pincode}
-                                                        onChange={(e) => setInvoiceData({...invoiceData, pincode: e.target.value})}
-                                                    />
-                                                </div>
-                                            </div>
-                                            
-                                            <div>
-                                                <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>State *</label>
-                                                <select
-                                                    className="input-field"
-                                                    value={invoiceData.state}
-                                                    onChange={(e) => setInvoiceData({...invoiceData, state: e.target.value})}
-                                                >
-                                                    <option value="">Select State</option>
-                                                    {indianStates.map((state) => (
-                                                        <option key={state} value={state}>{state}</option>
-                                                    ))}
-                                                </select>
-                                            </div>
-                                            
-                                            <div>
-                                                <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>GST Number</label>
-                                                <input
-                                                    type="text"
-                                                    className="input-field"
-                                                    value={invoiceData.gstNo}
-                                                    onChange={(e) => setInvoiceData({...invoiceData, gstNo: e.target.value.toUpperCase()})}
-                                                    placeholder="22AAAAA0000A1Z5 (if applicable)"
-                                                />
-                                            </div>
-                                            
-                                            <div>
-                                                <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>Contact Person</label>
-                                                <input
-                                                    type="text"
-                                                    className="input-field"
-                                                    value={invoiceData.contactPerson}
-                                                    onChange={(e) => setInvoiceData({...invoiceData, contactPerson: e.target.value})}
-                                                />
-                                            </div>
-                                            
-                                            <div>
-                                                <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>Contact Details</label>
-                                                <textarea
-                                                    className="input-field"
-                                                    value={invoiceData.contactDetails}
-                                                    onChange={(e) => setInvoiceData({...invoiceData, contactDetails: e.target.value})}
-                                                    rows="3"
-                                                    style={{ resize: 'vertical' }}
-                                                />
-                                            </div>
-                                        </div>
-                                    </div>
-                                    
-                                    {/* Invoice Details */}
-                                    <div>
-                                        <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '20px', borderBottom: '2px solid #e5e7eb', paddingBottom: '10px' }}>Invoice Details</h3>
-                                        
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                                            <div>
-                                                <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>PI Number *</label>
-                                                <input
-                                                    type="text"
-                                                    className="input-field"
-                                                    value={invoiceData.piNumber}
-                                                    onChange={(e) => setInvoiceData({...invoiceData, piNumber: e.target.value})}
-                                                />
-                                            </div>
-                                            
-                                            <div>
-                                                <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>Total Cartons/Boxes</label>
-                                                <input
-                                                    type="text"
-                                                    className="input-field"
-                                                    value={invoiceData.totalCartons}
-                                                    onChange={(e) => setInvoiceData({...invoiceData, totalCartons: e.target.value})}
-                                                />
-                                            </div>
-                                            
-                                            <div>
-                                                <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>E-way Bill Number</label>
-                                                <input
-                                                    type="text"
-                                                    className="input-field"
-                                                    value={invoiceData.ewayBillNumber}
-                                                    onChange={(e) => setInvoiceData({...invoiceData, ewayBillNumber: e.target.value})}
-                                                />
-                                            </div>
-                                            
-                                            <div>
-                                                <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>Payment Terms</label>
-                                                <select
-                                                    className="input-field"
-                                                    value={invoiceData.paymentTerms}
-                                                    onChange={(e) => setInvoiceData({...invoiceData, paymentTerms: e.target.value})}
-                                                >
-                                                    <option value="100% ADVANCE">100% ADVANCE</option>
-                                                    <option value="OTHER">Other</option>
-                                                </select>
-                                                {invoiceData.paymentTerms === 'OTHER' && (
-                                                    <input
-                                                        type="text"
-                                                        className="input-field"
-                                                        style={{ marginTop: '10px' }}
-                                                        value={invoiceData.customPaymentTerms}
-                                                        onChange={(e) => setInvoiceData({...invoiceData, customPaymentTerms: e.target.value})}
-                                                        placeholder="Enter custom payment terms"
-                                                    />
-                                                )}
-                                            </div>
-                                            
-                                            <div>
-                                                <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>Logistics Charges (₹)</label>
-                                                <input
-                                                    type="number"
-                                                    min="0"
-                                                    step="0.01"
-                                                    className="input-field"
-                                                    value={invoiceData.logisticsCharges}
-                                                    onChange={(e) => setInvoiceData({...invoiceData, logisticsCharges: parseFloat(e.target.value) || 0})}
-                                                />
-                                            </div>
-                                            
-                                            <div>
-                                                <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>Cash Discount (%)</label>
-                                                <input
-                                                    type="number"
-                                                    min="0"
-                                                    max="100"
-                                                    step="0.1"
-                                                    className="input-field"
-                                                    value={invoiceData.cashDiscount}
-                                                    onChange={(e) => setInvoiceData({...invoiceData, cashDiscount: parseFloat(e.target.value) || 0})}
-                                                />
-                                            </div>
-                                            
-                                            {/* Invoice Preview */}
-                                            <div style={{ background: '#f9fafb', padding: '20px', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
-                                                <h4 style={{ fontWeight: 'bold', marginBottom: '15px' }}>Invoice Preview</h4>
-                                                {(() => {
-                                                    const totals = calculateInvoiceTotals();
-                                                    return (
-                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '14px' }}>
-                                                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                                                <span>Total Qty:</span>
-                                                                <span style={{ fontWeight: 'bold' }}>{totals.totalQty}</span>
-                                                            </div>
-                                                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                                                <span>Total Value:</span>
-                                                                <span style={{ fontWeight: 'bold' }}>₹{totals.totalValue.toFixed(2)}</span>
-                                                            </div>
-                                                            {invoiceData.cashDiscount > 0 && (
-                                                                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#dc2626' }}>
-                                                                    <span>Cash Discount ({invoiceData.cashDiscount}%):</span>
-                                                                    <span style={{ fontWeight: 'bold' }}>-₹{totals.discountAmount.toFixed(2)}</span>
-                                                                </div>
-                                                            )}
-                                                            {invoiceData.logisticsCharges > 0 && (
-                                                                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#2563eb' }}>
-                                                                    <span>Logistics Charges:</span>
-                                                                    <span style={{ fontWeight: 'bold' }}>+₹{invoiceData.logisticsCharges.toFixed(2)}</span>
-                                                                </div>
-                                                            )}
-                                                            <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #d1d5db', paddingTop: '8px' }}>
-                                                                <span>Net Amount:</span>
-                                                                <span style={{ fontWeight: 'bold' }}>₹{totals.netAmount.toFixed(2)}</span>
-                                                            </div>
-                                                            {totals.isMaharashtra ? (
-                                                                <>
-                                                                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#16a34a' }}>
-                                                                        <span>CGST @ 2.5%:</span>
-                                                                        <span style={{ fontWeight: 'bold' }}>₹{totals.cgst.toFixed(2)}</span>
-                                                                    </div>
-                                                                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#16a34a' }}>
-                                                                        <span>SGST @ 2.5%:</span>
-                                                                        <span style={{ fontWeight: 'bold' }}>₹{totals.sgst.toFixed(2)}</span>
-                                                                    </div>
-                                                                </>
-                                                            ) : (
-                                                                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#16a34a' }}>
-                                                                    <span>IGST @ 5%:</span>
-                                                                    <span style={{ fontWeight: 'bold' }}>₹{totals.igst.toFixed(2)}</span>
-                                                                </div>
-                                                            )}
-                                                            <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '2px solid #374151', paddingTop: '8px', fontSize: '16px', fontWeight: 'bold' }}>
-                                                                <span>Final Amount:</span>
-                                                                <span style={{ color: '#16a34a' }}>₹{totals.finalAmount.toFixed(2)}</span>
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                })()}
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                <div style={{ marginTop: '40px', display: 'flex', justifyContent: 'space-between' }}>
-                                    <button
-                                        className="btn-secondary"
-                                        onClick={() => setCurrentStep(4)}
-                                    >
-                                        ← Back to Orders
-                                    </button>
-                                    
-                                    <button
-                                        className="btn-primary"
-                                        onClick={() => setShowDownloadOptions(true)}
-                                        disabled={!invoiceData.customerName || !invoiceData.addressLine1 || !invoiceData.city || !invoiceData.pincode || !invoiceData.state}
-                                        style={{ 
-                                            background: (invoiceData.customerName && invoiceData.addressLine1 && invoiceData.city && invoiceData.pincode && invoiceData.state)
-                                                ? 'linear-gradient(to right, #16a34a, #15803d)' 
-                                                : '#9ca3af',
-                                            opacity: (!invoiceData.customerName || !invoiceData.addressLine1 || !invoiceData.city || !invoiceData.pincode || !invoiceData.state) ? 0.5 : 1
-                                        }}
-                                    >
-                                        📄 Download Invoice
-                                    </button>
-                                </div>
-                                
-                                {/* Download Options Modal */}
-                                {showDownloadOptions && (
-                                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-                                        <div style={{ background: 'white', borderRadius: '12px', padding: '40px', maxWidth: '500px', width: '90%', boxShadow: '0 25px 50px rgba(0,0,0,0.25)' }}>
-                                            <h3 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '20px', textAlign: 'center' }}>
-                                                📄 Choose Download Format
-                                            </h3>
-                                            <p style={{ color: '#6b7280', textAlign: 'center', marginBottom: '30px' }}>
-                                                Select your preferred format for the invoice:
-                                            </p>
-                                            
-                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                                                <button
-                                                    className="btn-primary"
-                                                    onClick={downloadAsPDF}
-                                                    style={{ background: 'linear-gradient(to right, #dc2626, #b91c1c)', padding: '15px 25px', fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}
-                                                >
-                                                    📄 Download as PDF (Recommended)
-                                                </button>
-                                                
-                                                <button
-                                                    className="btn-primary"
-                                                    onClick={downloadAsExcel}
-                                                    style={{ background: 'linear-gradient(to right, #16a34a, #15803d)', padding: '15px 25px', fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}
-                                                >
-                                                    📊 Download as Excel
-                                                </button>
-                                                
-                                                <button
-                                                    className="btn-primary"
-                                                    onClick={downloadAsHTML}
-                                                    style={{ background: 'linear-gradient(to right, #2563eb, #1d4ed8)', padding: '15px 25px', fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}
-                                                >
-                                                    🌐 Download as HTML
-                                                </button>
-                                            </div>
-                                            
-                                            <div style={{ marginTop: '30px', textAlign: 'center' }}>
+                                            <div style={{ marginTop: '30px', display: 'flex', justifyContent: 'space-between' }}>
                                                 <button
                                                     className="btn-secondary"
-                                                    onClick={() => setShowDownloadOptions(false)}
-                                                    style={{ padding: '10px 20px' }}
+                                                    onClick={() => setCurrentStep(2)}
                                                 >
-                                                    Cancel
+                                                    ← Back
+                                                </button>
+                                                <button
+                                                    className="btn-primary"
+                                                    onClick={() => setCurrentStep(4)}
+                                                    style={{ background: 'linear-gradient(to right, #22c55e, #16a34a)' }}
+                                                >
+                                                    Start Ordering →
                                                 </button>
                                             </div>
+                                        </>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Step 4: Product Selection */}
+                            {currentStep === 4 && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                                    {/* Category Navigation */}
+                                    <div className="card" style={{ padding: '30px' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                                            <h2 style={{ fontSize: '24px', fontWeight: 'bold', background: 'linear-gradient(to right, #3b82f6, #8b5cf6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                                                {categories[currentCategory]} Products
+                                            </h2>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                                                <span style={{ background: '#f3f4f6', padding: '5px 15px', borderRadius: '20px', fontSize: '14px' }}>
+                                                    Category {currentCategory + 1} of {categories.length}
+                                                </span>
+                                                <div style={{ display: 'flex', gap: '5px' }}>
+                                                    <button
+                                                        className="btn-secondary"
+                                                        onClick={() => setCurrentCategory(Math.max(0, currentCategory - 1))}
+                                                        disabled={currentCategory === 0}
+                                                        style={{ padding: '8px', opacity: currentCategory === 0 ? 0.5 : 1 }}
+                                                    >
+                                                        ←
+                                                    </button>
+                                                    <button
+                                                        className="btn-secondary"
+                                                        onClick={() => setCurrentCategory(Math.min(categories.length - 1, currentCategory + 1))}
+                                                        disabled={currentCategory === categories.length - 1}
+                                                        style={{ padding: '8px', opacity: currentCategory === categories.length - 1 ? 0.5 : 1 }}
+                                                    >
+                                                        →
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                                            {categories.map((category, index) => (
+                                                <button
+                                                    key={index}
+                                                    onClick={() => setCurrentCategory(index)}
+                                                    className={currentCategory === index ? 'btn-primary' : 'btn-secondary'}
+                                                    style={{ 
+                                                        padding: '8px 16px',
+                                                        background: currentCategory === index 
+                                                            ? 'linear-gradient(to right, #8b5cf6, #7c3aed)' 
+                                                            : '#f3f4f6',
+                                                        color: currentCategory === index ? 'white' : '#374151'
+                                                    }}
+                                                >
+                                                    {category}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Products Grid */}
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(500px, 1fr))', gap: '20px' }}>
+                                        {groupProductsByParentAndVariant(getCurrentCategoryProducts()).map((productGroup, index) => (
+                                            <div key={index} className="card" style={{ padding: '20px', border: '2px solid #e5e7eb', transition: 'all 0.3s' }}>
+                                                <div style={{ display: 'flex', gap: '15px' }}>
+                                                    <div style={{ flexShrink: 0 }}>
+                                                        {/* Image with click handler for lightbox */}
+                                                        <img
+                                                            src={productGroup.imageUrl || 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400&h=400&fit=crop'}
+                                                            alt={productGroup.parentSKU}
+                                                            style={{ width: '80px', height: '80px', objectFit: 'cover', borderRadius: '8px', border: '2px solid #e5e7eb', cursor: 'pointer' }}
+                                                            onError={(e) => {
+                                                                // Updated placeholder for main UI (Step 4)
+                                                                e.target.src = 'https://placehold.co/80x80/E0E7FF/4338CA?text=No+Image';
+                                                            }}
+                                                            onClick={() => openLightbox(productGroup.imageUrl || 'https://images.unsplash.com/photo-1503919545889-aef636e10ad4?w=400&h=400&fit=crop')}
+                                                        />
+                                                    </div>
+                                                    
+                                                    <div style={{ flex: 1 }}>
+                                                        <h3 style={{ fontSize: '18px', fontWeight: 'bold', background: 'linear-gradient(to right, #3b82f6, #8b5cf6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', margin: '0 0 5px 0' }}>
+                                                            {productGroup.parentSKU}
+                                                        </h3>
+                                                        <p style={{ fontSize: '14px', color: '#6b7280', margin: '0 0 5px 0' }}>Color: {productGroup.color}</p>
+                                                        <p style={{ fontSize: '14px', color: '#6b7280', margin: '0 0 5px 0' }}>Variant: {productGroup.variant}</p>
+                                                        <p style={{ fontSize: '14px', fontWeight: 'bold', color: '#dc2626', margin: '0 0 15px 0' }}>MRP: ₹{productGroup.mrp}</p>
+                                                        
+                                                        <div>
+                                                            <h4 style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '10px' }}>Available Sizes:</h4>
+                                                            {productGroup.sizes.map((sizeInfo, sizeIndex) => {
+                                                                const currentQty = orderData[sizeInfo.childSKU] || 0;
+                                                                const lineTotal = currentQty * parseFloat(sizeInfo.wsp || 0);
+                                                                const stockInfo = getStockInfo(sizeInfo.childSKU);
+                                                                
+                                                                return (
+                                                                    <div key={sizeIndex} className={stockInfo.className} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px', borderRadius: '8px', marginBottom: '8px' }}>
+                                                                        <div style={{ flex: 1 }}>
+                                                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
+                                                                                <span style={{ fontWeight: 'bold' }}>{sizeInfo.size}</span>
+                                                                                <div style={{ display: 'flex', gap: '8px' }}>
+                                                                                    <span style={{ background: '#dcfce7', color: '#166534', padding: '2px 8px', borderRadius: '4px', fontSize: '12px' }}>
+                                                                                        WSP: ₹{sizeInfo.wsp}
+                                                                                    </span>
+                                                                                    <span style={{ fontWeight: 'bold', fontSize: '12px' }}>
+                                                                                        {stockInfo.quantity === null ? 'Unknown' : `Stock: ${stockInfo.quantity}`}
+                                                                                    </span>
+                                                                                </div>
+                                                                            </div>
+                                                                            {currentQty > 0 && (
+                                                                                <div style={{ fontSize: '12px', color: '#2563eb', fontWeight: 'bold' }}>
+                                                                                    Total: ₹{lineTotal.toFixed(2)}
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                        <div style={{ marginLeft: '10px' }}>
+                                                                            <input
+                                                                                type="number"
+                                                                                min="0"
+                                                                                max={stockInfo.quantity || 9999}
+                                                                                step="1"
+                                                                                value={currentQty === 0 ? '' : currentQty}
+                                                                                onChange={(e) => {
+                                                                                    handleQuantityChange(sizeInfo.childSKU, e.target.value);
+                                                                                }}
+                                                                                style={{ width: '70px', padding: '5px', border: '2px solid #d1d5db', borderRadius: '6px', textAlign: 'center' }}
+                                                                                placeholder="0"
+                                                                            />
+                                                                            {stockInfo.quantity !== null && (
+                                                                                <p style={{ fontSize: '10px', color: '#6b7280', textAlign: 'center', margin: '2px 0 0 0' }}>
+                                                                                    Max: {stockInfo.quantity}
+                                                                                </p>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    {/* Order Summary */}
+                                    <div className="card" style={{ padding: '30px' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <div style={{ display: 'flex', gap: '20px' }}>
+                                                <div style={{ background: 'linear-gradient(to right, #3b82f6, #1d4ed8)', padding: '15px 25px', borderRadius: '12px', color: 'white' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                        <span style={{ fontSize: '20px' }}>📦</span>
+                                                        <span style={{ fontSize: '18px', fontWeight: 'bold' }}>Total Qty: {totalItems}</span>
+                                                    </div>
+                                                </div>
+                                                
+                                                <div style={{ background: 'linear-gradient(to right, #22c55e, #15803d)', padding: '15px 25px', borderRadius: '12px', color: 'white' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                        <span style={{ fontSize: '20px', fontWeight: 'bold' }}>₹</span>
+                                                        <span style={{ fontSize: '18px', fontWeight: 'bold' }}>{totalValue}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
                                             
-                                            <div style={{ marginTop: '20px', padding: '15px', background: '#f0f9ff', borderRadius: '8px', fontSize: '14px' }}>
-                                                <p style={{ margin: '0 0 10px 0', fontWeight: 'bold', color: '#1e40af' }}>💡 Format Guide:</p>
-                                                <p style={{ margin: '0 0 5px 0', color: '#1e40af' }}><strong>PDF:</strong> Best for printing and official documents</p>
-                                                <p style={{ margin: '0 0 5px 0', color: '#1e40af' }}><strong>Excel:</strong> Best for data analysis and calculations</p>
-                                                <p style={{ margin: 0, color: '#1e40af' }}><strong>HTML:</strong> Best for web viewing and customization</p>
+                                            <div style={{ display: 'flex', gap: '15px' }}>
+                                                <button
+                                                    className="btn-secondary"
+                                                    onClick={() => setCurrentStep(3)}
+                                                >
+                                                    ← Back
+                                                </button>
+                                                <button
+                                                    className="btn-primary"
+                                                    onClick={proceedToInvoice}
+                                                    disabled={totalItems === 0}
+                                                    style={{ 
+                                                        background: totalItems > 0 
+                                                            ? 'linear-gradient(to right, #f97316, #ea580c)' 
+                                                            : '#9ca3af',
+                                                        opacity: totalItems === 0 ? 0.5 : 1
+                                                    }}
+                                                >
+                                                    📄 Generate Invoice ({totalItems} items)
+                                                </button>
                                             </div>
                                         </div>
                                     </div>
-                                )}
-                            </div>
-                        )}
+                                </div>
+                            )}
+
+                            {/* Step 5: Invoice Generation */}
+                            {currentStep === 5 && (
+                                <div className="card" style={{ padding: '40px' }}>
+                                    <h2 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '30px' }}>
+                                        🏢 Generate Proforma Invoice
+                                    </h2>
+                                    
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '30px' }}>
+                                        {/* Customer Details */}
+                                        <div>
+                                            <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '20px', borderBottom: '2px solid #e5e7eb', paddingBottom: '10px' }}>Customer Details</h3>
+                                            
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                                                <div>
+                                                    <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>Customer Name *</label>
+                                                    <input
+                                                        type="text"
+                                                        className="input-field"
+                                                        value={invoiceData.customerName}
+                                                        onChange={(e) => setInvoiceData({...invoiceData, customerName: e.target.value})}
+                                                    />
+                                                </div>
+                                                
+                                                <div>
+                                                    <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>Address Line 1 *</label>
+                                                    <input
+                                                        type="text"
+                                                        className="input-field"
+                                                        value={invoiceData.addressLine1}
+                                                        onChange={(e) => setInvoiceData({...invoiceData, addressLine1: e.target.value})}
+                                                        placeholder="Street address, building name"
+                                                    />
+                                                </div>
+                                                
+                                                <div>
+                                                    <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>Address Line 2</label>
+                                                    <input
+                                                        type="text"
+                                                        className="input-field"
+                                                        value={invoiceData.addressLine2}
+                                                        onChange={(e) => setInvoiceData({...invoiceData, addressLine2: e.target.value})}
+                                                        placeholder="Area, landmark"
+                                                    />
+                                                </div>
+                                                
+                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                                                    <div>
+                                                        <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>City *</label>
+                                                        <input
+                                                            type="text"
+                                                            className="input-field"
+                                                            value={invoiceData.city}
+                                                            onChange={(e) => setInvoiceData({...invoiceData, city: e.target.value})}
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>Pincode *</label>
+                                                        <input
+                                                            type="text"
+                                                            className="input-field"
+                                                            value={invoiceData.pincode}
+                                                            onChange={(e) => setInvoiceData({...invoiceData, pincode: e.target.value})}
+                                                        />
+                                                    </div>
+                                                </div>
+                                                
+                                                <div>
+                                                    <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>State *</label>
+                                                    <select
+                                                        className="input-field"
+                                                        value={invoiceData.state}
+                                                        onChange={(e) => setInvoiceData({...invoiceData, state: e.target.value})}
+                                                    >
+                                                        <option value="">Select State</option>
+                                                        {indianStates.map((state) => (
+                                                            <option key={state} value={state}>{state}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                                
+                                                <div>
+                                                    <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>GST Number</label>
+                                                    <input
+                                                        type="text"
+                                                        className="input-field"
+                                                        value={invoiceData.gstNo}
+                                                        onChange={(e) => setInvoiceData({...invoiceData, gstNo: e.target.value.toUpperCase()})}
+                                                        placeholder="22AAAAA0000A1Z5 (if applicable)"
+                                                    />
+                                                </div>
+                                                
+                                                <div>
+                                                    <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>Contact Person</label>
+                                                    <input
+                                                        type="text"
+                                                        className="input-field"
+                                                        value={invoiceData.contactPerson}
+                                                        onChange={(e) => setInvoiceData({...invoiceData, contactPerson: e.target.value})}
+                                                    />
+                                                </div>
+                                                
+                                                <div>
+                                                    <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>Contact Details</label>
+                                                    <textarea
+                                                        className="input-field"
+                                                        value={invoiceData.contactDetails}
+                                                        onChange={(e) => setInvoiceData({...invoiceData, contactDetails: e.target.value})}
+                                                        rows="3"
+                                                        style={{ resize: 'vertical' }}
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        {/* Invoice Details */}
+                                        <div>
+                                            <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '20px', borderBottom: '2px solid #e5e7eb', paddingBottom: '10px' }}>Invoice Details</h3>
+                                            
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                                                <div>
+                                                    <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>PI Number *</label>
+                                                    <input
+                                                        type="text"
+                                                        className="input-field"
+                                                        value={invoiceData.piNumber}
+                                                        onChange={(e) => setInvoiceData({...invoiceData, piNumber: e.target.value})}
+                                                    />
+                                                </div>
+                                                
+                                                <div>
+                                                    <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>Total Cartons/Boxes</label>
+                                                    <input
+                                                        type="text"
+                                                        className="input-field"
+                                                        value={invoiceData.totalCartons}
+                                                        onChange={(e) => setInvoiceData({...invoiceData, totalCartons: e.target.value})}
+                                                    />
+                                                </div>
+                                                
+                                                <div>
+                                                    <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>E-way Bill Number</label>
+                                                    <input
+                                                        type="text"
+                                                        className="input-field"
+                                                        value={invoiceData.ewayBillNumber}
+                                                        onChange={(e) => setInvoiceData({...invoiceData, ewayBillNumber: e.target.value})}
+                                                    />
+                                                </div>
+                                                
+                                                <div>
+                                                    <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>Payment Terms</label>
+                                                    <select
+                                                        className="input-field"
+                                                        value={invoiceData.paymentTerms}
+                                                        onChange={(e) => setInvoiceData({...invoiceData, paymentTerms: e.target.value})}
+                                                    >
+                                                        <option value="100% ADVANCE">100% ADVANCE</option>
+                                                        <option value="OTHER">Other</option>
+                                                    </select>
+                                                    {invoiceData.paymentTerms === 'OTHER' && (
+                                                        <input
+                                                            type="text"
+                                                            className="input-field"
+                                                            style={{ marginTop: '10px' }}
+                                                            value={invoiceData.customPaymentTerms}
+                                                            onChange={(e) => setInvoiceData({...invoiceData, customPaymentTerms: e.target.value})}
+                                                            placeholder="Enter custom payment terms"
+                                                        />
+                                                    )}
+                                                </div>
+                                                
+                                                <div>
+                                                    <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>Logistics Charges (₹)</label>
+                                                    <input
+                                                        type="number"
+                                                        min="0"
+                                                        step="0.01"
+                                                        className="input-field"
+                                                        value={invoiceData.logisticsCharges}
+                                                        onChange={(e) => setInvoiceData({...invoiceData, logisticsCharges: parseFloat(e.target.value) || 0})}
+                                                    />
+                                                </div>
+                                                
+                                                <div>
+                                                    <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>Cash Discount (%)</label>
+                                                    <input
+                                                        type="number"
+                                                        min="0"
+                                                        max="100"
+                                                        step="0.1"
+                                                        className="input-field"
+                                                        value={invoiceData.cashDiscount}
+                                                        onChange={(e) => setInvoiceData({...invoiceData, cashDiscount: parseFloat(e.target.value) || 0})}
+                                                    />
+                                                </div>
+                                                
+                                                {/* Invoice Preview */}
+                                                <div style={{ background: '#f9fafb', padding: '20px', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
+                                                    <h4 style={{ fontWeight: 'bold', marginBottom: '15px' }}>Invoice Preview</h4>
+                                                    {(() => {
+                                                        const totals = calculateInvoiceTotals();
+                                                        return (
+                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '14px' }}>
+                                                                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                                                    <span>Total Qty:</span>
+                                                                    <span style={{ fontWeight: 'bold' }}>{totals.totalQty}</span>
+                                                                </div>
+                                                                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                                                    <span>Total Value:</span>
+                                                                    <span style={{ fontWeight: 'bold' }}>₹{totals.totalValue.toFixed(2)}</span>
+                                                                </div>
+                                                                {invoiceData.cashDiscount > 0 && (
+                                                                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#dc2626' }}>
+                                                                        <span>Cash Discount ({invoiceData.cashDiscount}%):</span>
+                                                                        <span style={{ fontWeight: 'bold' }}>-₹{totals.discountAmount.toFixed(2)}</span>
+                                                                    </div>
+                                                                )}
+                                                                {invoiceData.logisticsCharges > 0 && (
+                                                                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#2563eb' }}>
+                                                                        <span>Logistics Charges:</span>
+                                                                        <span style={{ fontWeight: 'bold' }}>+₹{invoiceData.logisticsCharges.toFixed(2)}</span>
+                                                                    </div>
+                                                                )}
+                                                                <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #d1d5db', paddingTop: '8px' }}>
+                                                                    <span>Net Amount:</span>
+                                                                    <span style={{ fontWeight: 'bold' }}>₹{totals.netAmount.toFixed(2)}</span>
+                                                                </div>
+                                                                {totals.isMaharashtra ? (
+                                                                    <>
+                                                                        <div style={{ display: 'flex', justifyContent: 'space-between', color: '#16a34a' }}>
+                                                                            <span>CGST @ 2.5%:</span>
+                                                                            <span style={{ fontWeight: 'bold' }}>₹{totals.cgst.toFixed(2)}</span>
+                                                                        </div>
+                                                                        <div style={{ display: 'flex', justifyContent: 'space-between', color: '#16a34a' }}>
+                                                                            <span>SGST @ 2.5%:</span>
+                                                                            <span style={{ fontWeight: 'bold' }}>₹{totals.sgst.toFixed(2)}</span>
+                                                                        </div>
+                                                                    </>
+                                                                ) : (
+                                                                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#16a34a' }}>
+                                                                        <span>IGST @ 5%:</span>
+                                                                        <span style={{ fontWeight: 'bold' }}>₹{totals.igst.toFixed(2)}</span>
+                                                                    </div>
+                                                                )}
+                                                                <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '2px solid #374151', paddingTop: '8px', fontSize: '16px', fontWeight: 'bold' }}>
+                                                                    <span>Final Amount:</span>
+                                                                    <span style={{ color: '#16a34a' }}>₹{totals.finalAmount.toFixed(2)}</span>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })()}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div style={{ marginTop: '40px', display: 'flex', justifyContent: 'space-between' }}>
+                                        <button
+                                            className="btn-secondary"
+                                            onClick={() => setCurrentStep(4)}
+                                        >
+                                            ← Back to Orders
+                                        </button>
+                                        
+                                        <button
+                                            className="btn-primary"
+                                            onClick={() => setShowDownloadOptions(true)}
+                                            disabled={!invoiceData.customerName || !invoiceData.addressLine1 || !invoiceData.city || !invoiceData.pincode || !invoiceData.state}
+                                            style={{ 
+                                                background: (invoiceData.customerName && invoiceData.addressLine1 && invoiceData.city && invoiceData.pincode && invoiceData.state)
+                                                    ? 'linear-gradient(to right, #16a34a, #15803d)' 
+                                                    : '#9ca3af',
+                                                opacity: (!invoiceData.customerName || !invoiceData.addressLine1 || !invoiceData.city || !invoiceData.pincode || !invoiceData.state) ? 0.5 : 1
+                                            }}
+                                        >
+                                            📄 Download Invoice
+                                        </button>
+                                    </div>
+                                    
+                                    {/* Download Options Modal */}
+                                    {showDownloadOptions && (
+                                        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+                                            <div style={{ background: 'white', borderRadius: '12px', padding: '40px', maxWidth: '500px', width: '90%', boxShadow: '0 25px 50px rgba(0,0,0,0.25)' }}>
+                                                <h3 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '20px', textAlign: 'center' }}>
+                                                    📄 Choose Download Format
+                                                </h3>
+                                                <p style={{ color: '#6b7280', textAlign: 'center', marginBottom: '30px' }}>
+                                                    Select your preferred format for the invoice:
+                                                </p>
+                                                
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                                                    <button
+                                                        className="btn-primary"
+                                                        onClick={downloadAsPDF}
+                                                        style={{ background: 'linear-gradient(to right, #dc2626, #b91c1c)', padding: '15px 25px', fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}
+                                                    >
+                                                        📄 Download as PDF (Recommended)
+                                                    </button>
+                                                    
+                                                    <button
+                                                        className="btn-primary"
+                                                        onClick={downloadAsExcel}
+                                                        style={{ background: 'linear-gradient(to right, #16a34a, #15803d)', padding: '15px 25px', fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}
+                                                    >
+                                                        📊 Download as Excel
+                                                    </button>
+                                                    
+                                                    <button
+                                                        className="btn-primary"
+                                                        onClick={downloadAsHTML}
+                                                        style={{ background: 'linear-gradient(to right, #2563eb, #1d4ed8)', padding: '15px 25px', fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}
+                                                    >
+                                                        🌐 Download as HTML
+                                                    </button>
+                                                </div>
+                                                
+                                                <div style={{ marginTop: '30px', textAlign: 'center' }}>
+                                                    <button
+                                                        className="btn-secondary"
+                                                        onClick={() => setShowDownloadOptions(false)}
+                                                        style={{ padding: '10px 20px' }}
+                                                    >
+                                                        Cancel
+                                                    </button>
+                                                </div>
+                                                
+                                                <div style={{ marginTop: '20px', padding: '15px', background: '#f0f9ff', borderRadius: '8px', fontSize: '14px' }}>
+                                                    <p style={{ margin: '0 0 10px 0', fontWeight: 'bold', color: '#1e40af' }}>💡 Format Guide:</p>
+                                                    <p style={{ margin: '0 0 5px 0', color: '#1e40af' }}><strong>PDF:</strong> Best for printing and official documents</p>
+                                                    <p style={{ margin: '0 0 5px 0', color: '#1e40af' }}><strong>Excel:</strong> Best for data analysis and calculations</p>
+                                                    <p style={{ margin: 0, color: '#1e40af' }}><strong>HTML:</strong> Best for web viewing and customization</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
                     </div>
 
                     {/* Image Lightbox Component (Outside main App flow) */}
@@ -1773,7 +1809,7 @@
                             />
                         </div>
                     </div>
-                </div>
+                </>
             );
         }
 
