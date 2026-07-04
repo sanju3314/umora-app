@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>UMORA Product Catalog Management System</title>
+    <title>UMORA Invoice Generator (PI / TI)</title>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -11,1784 +11,713 @@
     <script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* Custom Styles */
-        .btn-primary {
-            background: linear-gradient(to right, #3b82f6, #8b5cf6);
-            color: white;
-            padding: 12px 24px;
-            border-radius: 8px;
-            font-weight: bold;
-            border: none;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-        .btn-primary:hover {
-            transform: scale(1.05);
-            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
-        }
-        .btn-secondary {
-            background: linear-gradient(to right, #6b7280, #9ca3af);
-            color: white;
-            padding: 8px 16px;
-            border-radius: 6px;
-            border: none;
-            cursor: pointer;
-        }
-        .input-field {
-            width: 100%;
-            padding: 12px;
-            border: 2px solid #e5e7eb;
-            border-radius: 8px;
-            font-size: 16px;
-        }
-        .input-field:focus {
-            outline: none;
-            border-color: #3b82f6;
-            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-        }
-        .card {
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
-            border: 1px solid #e5e7eb;
-        }
-        .progress-step {
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            color: white;
-        }
-        .progress-step.active {
-            background: linear-gradient(to right, #3b82f6, #8b5cf6);
-        }
-        .progress-step.completed {
-            background: #10b981;
-        }
-        .progress-step.inactive {
-            background: #9ca3af;
-        }
-        .stock-high { background: #dcfce7; color: #166534; border: 2px solid #bbf7d0; }
-        .stock-medium { background: #fef3c7; color: #92400e; border: 2px solid #fde68a; }
-        .stock-low { background: #fecaca; color: #991b1b; border: 2px solid #fca5a5; }
-        .stock-unknown { background: #f3f4f6; color: #6b7280; border: 2px solid #d1d5db; }
-
-        /* Styles for the Image Lightbox */
-        .lightbox-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.9);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 9999;
-            opacity: 0;
-            visibility: hidden;
-            transition: opacity 0.3s, visibility 0.3s;
-        }
-        .lightbox-overlay.visible {
-            opacity: 1;
-            visibility: visible;
-        }
-        .lightbox-content {
-            max-width: 90%;
-            max-height: 90%;
-            position: relative;
-        }
-        .lightbox-image {
-            display: block;
-            width: auto;
-            max-width: 100vw;
-            height: auto;
-            max-height: 90vh;
-            border-radius: 12px;
-            box-shadow: 0 0 30px rgba(0,0,0,0.5);
-        }
-        .lightbox-close {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            background: white;
-            color: #3b82f6;
-            border: none;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            font-size: 24px;
-            cursor: pointer;
-            line-height: 40px;
-            text-align: center;
-            font-weight: bold;
-            opacity: 0.8;
-            transition: opacity 0.2s;
-        }
-        .lightbox-close:hover {
-            opacity: 1;
-        }
+        :root { --brand1:#4f46e5; --brand2:#7c3aed; }
+        body { margin:0; font-family:'Segoe UI',Arial,sans-serif; background:#f4f5fb; min-height:100vh; color:#1f2937; }
+        .btn-primary { background:linear-gradient(to right,var(--brand1),var(--brand2)); color:#fff; padding:12px 24px; border-radius:8px; font-weight:600; border:none; cursor:pointer; transition:.2s; }
+        .btn-primary:hover { filter:brightness(1.07); box-shadow:0 8px 18px rgba(79,70,229,.25); }
+        .btn-primary:disabled { opacity:.45; cursor:not-allowed; box-shadow:none; }
+        .btn-secondary { background:#e5e7eb; color:#374151; padding:10px 18px; border-radius:8px; border:none; cursor:pointer; font-weight:600; }
+        .btn-secondary:hover { background:#d1d5db; }
+        .input-field { width:100%; padding:11px; border:1.5px solid #e5e7eb; border-radius:8px; font-size:15px; box-sizing:border-box; }
+        .input-field:focus { outline:none; border-color:var(--brand1); box-shadow:0 0 0 3px rgba(79,70,229,.12); }
+        .card { background:#fff; border-radius:14px; box-shadow:0 6px 20px rgba(17,24,39,.06); border:1px solid #eef0f6; }
+        .progress-step { width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:700; color:#fff; font-size:14px; }
+        .progress-step.active { background:linear-gradient(to right,var(--brand1),var(--brand2)); }
+        .progress-step.completed { background:#10b981; }
+        .progress-step.inactive { background:#c4c8d4; }
+        .stock-high { background:#dcfce7; color:#166534; border:1.5px solid #bbf7d0; }
+        .stock-medium { background:#fef3c7; color:#92400e; border:1.5px solid #fde68a; }
+        .stock-low { background:#fecaca; color:#991b1b; border:1.5px solid #fca5a5; }
+        .stock-unknown { background:#f3f4f6; color:#6b7280; border:1.5px solid #e5e7eb; }
+        .doc-toggle { display:inline-flex; background:#eef0f6; border-radius:10px; padding:4px; gap:4px; }
+        .doc-toggle button { border:none; background:transparent; padding:8px 18px; border-radius:8px; font-weight:700; cursor:pointer; color:#4b5563; }
+        .doc-toggle button.on { background:linear-gradient(to right,var(--brand1),var(--brand2)); color:#fff; }
+        .lightbox-overlay { position:fixed; inset:0; background:rgba(0,0,0,.9); display:flex; align-items:center; justify-content:center; z-index:9999; opacity:0; visibility:hidden; transition:.25s; }
+        .lightbox-overlay.visible { opacity:1; visibility:visible; }
+        .lightbox-content { max-width:90%; max-height:90%; position:relative; }
+        .lightbox-image { display:block; max-width:100vw; max-height:90vh; border-radius:12px; box-shadow:0 0 30px rgba(0,0,0,.5); }
+        .lightbox-close { position:absolute; top:8px; right:8px; background:#fff; color:var(--brand1); border:none; border-radius:50%; width:40px; height:40px; font-size:22px; cursor:pointer; font-weight:bold; }
+        @keyframes spin { to { transform:rotate(360deg); } }
     </style>
 </head>
-<body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background: linear-gradient(135deg, #dbeafe 0%, #f3e8ff 50%, #fce7f3 100%); min-height: 100vh;">
-
+<body>
     <div id="root">
-        <div style="display: flex; justify-content: center; align-items: center; height: 100vh;">
-            <div style="text-align: center;">
-                <div style="font-size: 24px; margin-bottom: 20px;">Loading UMORA System...</div>
-                <div style="width: 50px; height: 50px; border: 5px solid #f3f3f3; border-top: 5px solid #3498db; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+        <div style="display:flex;justify-content:center;align-items:center;height:100vh;">
+            <div style="text-align:center;">
+                <div style="font-size:22px;margin-bottom:20px;">Loading UMORA Invoice Generator…</div>
+                <div style="width:44px;height:44px;border:5px solid #eee;border-top:5px solid var(--brand1);border-radius:50%;margin:0 auto;animation:spin 1s linear infinite;"></div>
             </div>
         </div>
     </div>
 
-    <style>
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-    </style>
-
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
 
-        // Custom function to convert number to words (Indian system)
+        // ---- Number to words (Indian system) ----
         const numberToWordsIndianSystem = (n) => {
             const num = Math.floor(n);
-            const words = [
-                'Zero', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 
-                'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'
-            ];
-            const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
-            const units = [
-                'Crore', 'Lakh', 'Thousand', 'Hundred'
-            ];
-            const divisors = [10000000, 100000, 1000, 100];
-
+            const words = ['Zero','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];
+            const tens = ['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
             if (num === 0) return 'INR Zero Only';
-
-            let result = '';
-            
-            // Function to convert 1-999 to words
-            const convertLessThanThousand = (num) => {
-                if (num === 0) return '';
-                if (num < 20) return words[num];
-                if (num < 100) return tens[Math.floor(num / 10)] + (num % 10 !== 0 ? ' ' + words[num % 10] : '');
-                return words[Math.floor(num / 100)] + ' Hundred' + (num % 100 !== 0 ? ' and ' + convertLessThanThousand(num % 100) : '');
-            };
-
-            let tempNum = num;
-
-            for (let i = 0; i < divisors.length; i++) {
-                const divisor = divisors[i];
-                const unit = units[i];
-
-                if (tempNum >= divisor) {
-                    let part = Math.floor(tempNum / divisor);
-                    
-                    if (unit === 'Hundred') {
-                        // Special handling for the thousands group when it's just 'hundred'
-                        if (divisors[i-1] === 1000 && tempNum >= 1000 && tempNum < 100000) {
-                            part = Math.floor(tempNum / 1000);
-                            result += convertLessThanThousand(part) + ' Thousand ';
-                            tempNum %= 1000;
-                            continue;
-                        }
-                        
-                        // Handle the hundreds place of the last group
-                        result += convertLessThanThousand(part) + ' ' + unit + ' ';
-                    } else {
-                        // Standard handling for crore, lakh, thousand
-                        result += convertLessThanThousand(part) + ' ' + unit + ' ';
-                    }
-                    tempNum %= divisor;
-                }
-            }
-            
-            // Handle the remaining part (less than 100)
-            if (tempNum > 0) {
-                result += convertLessThanThousand(tempNum);
-            }
-            
-            // Handle paise (decimals)
-            const paise = Math.round((n - num) * 100);
-            let paiseWords = '';
-            if (paise > 0) {
-                paiseWords = ' and ' + convertLessThanThousand(paise) + ' Paise';
-            }
-            
-            // Clean up and format
-            let finalWords = 'INR ' + result.trim().replace(/\s+/g, ' ') + paiseWords + ' Only';
-            // Simple replacement to adhere to Indian numbering tradition (e.g. "One hundred and sixty two" -> "One hundred sixty two")
-            finalWords = finalWords.replace(/and hundred/g, 'hundred');
-            
-            return finalWords;
+            const c = (x) => { if(x===0)return''; if(x<20)return words[x]; if(x<100)return tens[Math.floor(x/10)]+(x%10?' '+words[x%10]:''); return words[Math.floor(x/100)]+' Hundred'+(x%100?' '+c(x%100):''); };
+            let t = num, r='';
+            const groups=[[10000000,'Crore'],[100000,'Lakh'],[1000,'Thousand'],[100,'Hundred']];
+            for (const [d,u] of groups){ if(t>=d){ r+=c(Math.floor(t/d))+' '+u+' '; t%=d; } }
+            if(t>0) r+=c(t);
+            const paise = Math.round((n-num)*100);
+            let p=''; if(paise>0) p=' and '+c(paise)+' Paise';
+            return ('INR '+r.trim().replace(/\s+/g,' ')+p+' Only');
         };
 
+        const DOC_LABELS = { PI: 'PROFORMA INVOICE', TI: 'TAX INVOICE' };
 
         function App() {
+            const [mode, setMode] = useState('start');          // 'start' | 'flow'
+            const [docType, setDocType] = useState('PI');        // 'PI' | 'TI'
+            const [editMode, setEditMode] = useState(false);
             const [currentStep, setCurrentStep] = useState(1);
+
             const [customerData, setCustomerData] = useState({
                 date: new Date().toISOString().split('T')[0],
-                customerName: '',
-                customerMobile: '',
-                city: '',
-                pincode: ''
+                customerName:'', customerMobile:'', city:'', pincode:''
             });
-            
             const [invoiceData, setInvoiceData] = useState({
-                customerName: '',
-                addressLine1: '',
-                addressLine2: '',
-                city: '',
-                pincode: '',
-                state: '',
-                gstNo: '',
-                contactPerson: '',
-                contactDetails: '',
-                totalCartons: '',
-                ewayBillNumber: '',
-                paymentTerms: '100% ADVANCE',
-                customPaymentTerms: '',
-                logisticsCharges: 0,
-                cashDiscount: 0,
-                piNumber: '13/2025-26'
+                customerName:'', addressLine1:'', addressLine2:'', city:'', pincode:'', state:'', gstNo:'',
+                contactPerson:'', contactDetails:'', totalCartons:'', ewayBillNumber:'',
+                paymentTerms:'100% ADVANCE', customPaymentTerms:'', logisticsCharges:0, cashDiscount:0,
+                piNumber:'13/2025-26'
             });
-            
+
             const [products, setProducts] = useState([]);
             const [categories, setCategories] = useState([]);
             const [currentCategory, setCurrentCategory] = useState(0);
             const [uploadedCSV, setUploadedCSV] = useState(null);
             const [orderData, setOrderData] = useState({});
-            const [orderSummary, setOrderSummary] = useState({ totalItems: 0, totalValue: 0 });
-            
+            const [orderSummary, setOrderSummary] = useState({ totalItems:0, totalValue:0 });
+
             const [inventoryData, setInventoryData] = useState({});
-            const [uploadedInventoryCSV, setUploadedInventoryCSV] = useState(null);
-            const [inventoryStats, setInventoryStats] = useState({
-                totalSKUs: 0,
-                matchedSKUs: 0,
-                unknownSKUs: 0
-            });
+            const [uploadedInventoryFiles, setUploadedInventoryFiles] = useState([]);
+            const [inventoryStats, setInventoryStats] = useState({ totalSKUs:0, matchedSKUs:0, unknownSKUs:0 });
             const [showDownloadOptions, setShowDownloadOptions] = useState(false);
-            
-            // New state for lightbox
-            const [lightbox, setLightbox] = useState({
-                visible: false,
-                imageUrl: ''
-            });
+            const [notice, setNotice] = useState('');
+            const [lightbox, setLightbox] = useState({ visible:false, imageUrl:'' });
 
             const fileInputRef = useRef(null);
             const inventoryFileInputRef = useRef(null);
+            const editInputRef = useRef(null);
 
-            // Function to open lightbox
-            const openLightbox = (imageUrl) => {
-                setLightbox({ visible: true, imageUrl });
-            };
+            const flash = (msg) => { setNotice(msg); setTimeout(()=>setNotice(''), 4000); };
+            const openLightbox = (u) => setLightbox({ visible:true, imageUrl:u });
+            const closeLightbox = () => setLightbox({ visible:false, imageUrl:'' });
 
-            // Function to close lightbox
-            const closeLightbox = () => {
-                setLightbox({ visible: false, imageUrl: '' });
-            };
-
-
-            // Calculate totals
+            // ---- Totals ----
             useEffect(() => {
-                let totalItems = 0;
-                let totalValue = 0;
-                
-                Object.keys(orderData).forEach(childSKU => {
-                    const quantity = orderData[childSKU];
-                    if (quantity && quantity > 0) {
-                        const product = products.find(p => p['Child SKU Code'] === childSKU);
-                        if (product) {
-                            totalItems += quantity;
-                            totalValue += quantity * parseFloat(product.WSP || 0);
-                        }
-                    }
+                let totalItems=0, totalValue=0;
+                Object.keys(orderData).forEach(sku => {
+                    const q = orderData[sku];
+                    if (q>0){ const p=products.find(x=>x['Child SKU Code']===sku); if(p){ totalItems+=q; totalValue+=q*parseFloat(p.WSP||0); } }
                 });
-                
                 setOrderSummary({ totalItems, totalValue: totalValue.toFixed(2) });
             }, [orderData, products]);
 
-            // Calculate inventory statistics
+            // ---- Inventory stats ----
             useEffect(() => {
-                if (products.length > 0) {
-                    const uniqueSKUs = [...new Set(products.map(p => p['Child SKU Code']))].filter(Boolean);
-                    const matchedSKUs = uniqueSKUs.filter(sku => inventoryData[sku.toUpperCase()] !== undefined);
-                    const unknownSKUs = uniqueSKUs.length - matchedSKUs.length;
-                    
-                    setInventoryStats({
-                        totalSKUs: uniqueSKUs.length,
-                        matchedSKUs: matchedSKUs.length,
-                        unknownSKUs: unknownSKUs
-                    });
+                if (products.length>0){
+                    const uniq=[...new Set(products.map(p=>p['Child SKU Code']))].filter(Boolean);
+                    const matched=uniq.filter(s=>inventoryData[s.toUpperCase()]!==undefined);
+                    setInventoryStats({ totalSKUs:uniq.length, matchedSKUs:matched.length, unknownSKUs:uniq.length-matched.length });
                 }
             }, [products, inventoryData]);
 
-            // Handle CSV upload
+            // ---- Catalog upload ----
             const handleCSVUpload = (event) => {
-                const file = event.target.files[0];
-                if (!file) return;
-
-                Papa.parse(file, {
-                    header: true,
-                    dynamicTyping: true,
-                    skipEmptyLines: true,
-                    complete: (results) => {
-                        const cleanedData = results.data.map(row => {
-                            const cleanedRow = {};
-                            Object.keys(row).forEach(key => {
-                                // Robust key cleaning: strip non-alphanumeric chars and trim whitespace
-                                let cleanKey = key.replace(/[^a-zA-Z0-9\s]/g, '').trim(); 
-                                
-                                // Special handling for the Image URL column name, as it's critical
-                                if (key.toLowerCase().includes('image') && key.toLowerCase().includes('url')) {
-                                    cleanKey = 'Image URL'; 
-                                }
-
-                                cleanedRow[cleanKey] = row[key];
+                const file = event.target.files[0]; if(!file) return;
+                Papa.parse(file, { header:true, dynamicTyping:true, skipEmptyLines:true,
+                    complete: (res) => {
+                        const cleaned = res.data.map(row => {
+                            const cr={};
+                            Object.keys(row).forEach(k => {
+                                let ck=k.replace(/[^a-zA-Z0-9\s]/g,'').trim();
+                                if (k.toLowerCase().includes('image') && k.toLowerCase().includes('url')) ck='Image URL';
+                                cr[ck]=row[k];
                             });
-                            return cleanedRow;
-                        }).filter(row => row['Child SKU Code']);
-                        
-                        setProducts(cleanedData);
-                        const uniqueCategories = [...new Set(cleanedData.map(item => item.Category))].filter(Boolean);
-                        setCategories(uniqueCategories);
+                            return cr;
+                        }).filter(r=>r['Child SKU Code']);
+                        setProducts(cleaned);
+                        setCategories([...new Set(cleaned.map(i=>i.Category))].filter(Boolean));
                         setUploadedCSV(file.name);
-                        // Using a custom message box instead of alert()
-                        // alert('✅ Products loaded successfully! ' + cleanedData.length + ' products found.');
-                        console.log('✅ Products loaded successfully! ' + cleanedData.length + ' products found.');
+                        flash('✅ Catalog loaded: '+cleaned.length+' products.');
                     },
-                    error: (error) => {
-                        // Using a custom message box instead of alert()
-                        // alert('❌ Error uploading file: ' + error.message);
-                        console.error('❌ Error uploading file: ' + error.message);
-                    }
+                    error: (e) => flash('❌ Catalog error: '+e.message)
                 });
-                
-                event.target.value = '';
+                event.target.value='';
             };
 
-            // Handle Inventory CSV upload
+            // ---- Inventory upload (MULTIPLE files clubbed) ----
             const handleInventoryUpload = (event) => {
-                const file = event.target.files[0];
-                if (!file) return;
-
-                Papa.parse(file, {
-                    header: true,
-                    dynamicTyping: true,
-                    skipEmptyLines: true,
-                    complete: (results) => {
-                        const inventoryMap = {};
-                        
-                        results.data.forEach(row => {
-                            const cleanedRow = {};
-                            Object.keys(row).forEach(key => {
-                                const cleanKey = key.trim();
-                                cleanedRow[cleanKey] = row[key];
+                const files = Array.from(event.target.files); if(!files.length) return;
+                let pending = files.length;
+                const merged = { ...inventoryData };
+                const names = [...uploadedInventoryFiles];
+                files.forEach(file => {
+                    Papa.parse(file, { header:true, dynamicTyping:true, skipEmptyLines:true,
+                        complete: (res) => {
+                            res.data.forEach(row => {
+                                const cr={}; Object.keys(row).forEach(k=>cr[k.trim()]=row[k]);
+                                let sku = cr.sku || cr.SKU || cr['Child SKU Code'];
+                                const qty = parseInt(cr.old_quantity || cr.quantity || cr.stock || cr.Stock || 0);
+                                if (sku){
+                                    sku = String(sku).toUpperCase();
+                                    if (sku.startsWith('SZ')) sku='LA'+sku.substring(2);
+                                    merged[sku] = qty;
+                                }
                             });
-                            
-                            let sku = cleanedRow.sku || cleanedRow.SKU || cleanedRow['Child SKU Code'];
-                            const quantity = parseInt(cleanedRow.old_quantity || cleanedRow.quantity || cleanedRow.stock || 0);
-                            
-                            if (sku) {
-                                const originalSKU = sku;
-                                sku = sku.toUpperCase();
-                                
-                                if (sku.startsWith('SZ')) {
-                                    sku = 'LA' + sku.substring(2);
-                                }
-                                
-                                if (originalSKU !== sku) {
-                                    console.log(`🔄 SKU converted: ${originalSKU} → ${sku}`);
-                                }
-                                
-                                inventoryMap[sku] = quantity;
+                            names.push(file.name);
+                            if (--pending===0){
+                                setInventoryData(merged);
+                                setUploadedInventoryFiles(names);
+                                flash('✅ Inventory clubbed from '+names.length+' file(s): '+Object.keys(merged).length+' SKUs.');
                             }
-                        });
-                        
-                        setInventoryData(inventoryMap);
-                        setUploadedInventoryCSV(file.name);
-                        // Using a custom message box instead of alert()
-                        // alert('✅ Inventory data loaded successfully! ' + Object.keys(inventoryMap).length + ' SKUs found.');
-                        console.log('✅ Inventory data loaded successfully! ' + Object.keys(inventoryMap).length + ' SKUs found.');
-                    },
-                    error: (error) => {
-                        // Using a custom message box instead of alert()
-                        // alert('❌ Error uploading inventory file: ' + error.message);
-                        console.error('❌ Error uploading inventory file: ' + error.message);
-                    }
-                });
-                
-                event.target.value = '';
-            };
-
-            // Get stock info
-            const getStockInfo = (childSKU) => {
-                const stock = inventoryData[childSKU.toUpperCase()];
-                if (stock === undefined) {
-                    return { quantity: null, status: 'unknown', className: 'stock-unknown' };
-                }
-                
-                if (stock >= 50) {
-                    return { quantity: stock, status: 'high', className: 'stock-high' };
-                } else if (stock >= 10) {
-                    return { quantity: stock, status: 'medium', className: 'stock-medium' };
-                } else {
-                    return { quantity: stock, status: 'low', className: 'stock-low' };
-                }
-            };
-
-            // Group products
-            const groupProductsByParentAndVariant = (categoryProducts) => {
-                const grouped = {};
-                
-                categoryProducts.forEach(product => {
-                    const parentSKU = product['Parent SKU Code'];
-                    const childSKU = product['Child SKU Code'];
-                    
-                    let variant;
-                    if (childSKU && childSKU.length > 11) {
-                        variant = childSKU.substring(9, 12);
-                    } else {
-                        variant = product.Color || 'DEFAULT';
-                    }
-                    
-                    const key = `${parentSKU}_${variant}`;
-                    
-                    if (!grouped[key]) {
-                        grouped[key] = {
-                            parentSKU,
-                            variant,
-                            color: product.Color,
-                            category: product.Category,
-                            mrp: product.MRP,
-                            imageUrl: product['Image URL'] ? product['Image URL'].trim() : '', // Ensure image URL is trimmed/clean
-                            hsn: product.HSN,
-                            sizes: []
-                        };
-                    }
-                    
-                    grouped[key].sizes.push({
-                        size: product.Size,
-                        childSKU: product['Child SKU Code'],
-                        wsp: product.WSP
+                        },
+                        error: (e) => { if(--pending===0){ setInventoryData(merged); setUploadedInventoryFiles(names);} flash('❌ Inventory error: '+e.message); }
                     });
                 });
-                
-                return Object.values(grouped);
+                event.target.value='';
             };
 
-            // Handle quantity changes
-            const handleQuantityChange = (childSKU, quantity) => {
-                const stockInfo = getStockInfo(childSKU);
-                const qty = quantity === '' ? 0 : parseInt(quantity) || 0;
-                
-                if (stockInfo.quantity !== null && qty > stockInfo.quantity) {
-                    // Using console.error instead of alert()
-                    console.error(`❌ Cannot order ${qty} items. Only ${stockInfo.quantity} available in stock for SKU: ${childSKU}`);
-                    return;
-                }
-                
-                setOrderData(prev => {
-                    const newData = { ...prev };
-                    
-                    if (qty <= 0) {
-                        delete newData[childSKU];
-                    } else {
-                        newData[childSKU] = qty;
-                    }
-                    
-                    return newData;
+            // ---- Use stock straight from catalog's Stock column ----
+            const useCatalogStock = () => {
+                if (!products.length){ flash('⚠️ Upload the catalog first.'); return; }
+                const map={};
+                products.forEach(p => {
+                    const sku=p['Child SKU Code']; const st=p.Stock;
+                    if (sku && st!==undefined && st!=='' && st!==null) map[String(sku).toUpperCase()]=parseInt(st)||0;
                 });
+                if (!Object.keys(map).length){ flash('⚠️ No "Stock" column found in catalog.'); return; }
+                setInventoryData(map);
+                setUploadedInventoryFiles(['(from catalog Stock column)']);
+                flash('✅ Using stock from catalog: '+Object.keys(map).length+' SKUs.');
             };
 
-            // Get current category products
-            const getCurrentCategoryProducts = () => {
-                if (categories.length === 0) return [];
-                const currentCat = categories[currentCategory];
-                return products.filter(p => p.Category === currentCat);
+            const getStockInfo = (sku) => {
+                const s = inventoryData[String(sku).toUpperCase()];
+                if (s===undefined) return { quantity:null, status:'unknown', className:'stock-unknown' };
+                if (s>=50) return { quantity:s, status:'high', className:'stock-high' };
+                if (s>=10) return { quantity:s, status:'medium', className:'stock-medium' };
+                return { quantity:s, status:'low', className:'stock-low' };
             };
 
-            // Validate customer info
+            const groupProductsByParentAndVariant = (catProducts) => {
+                const g={};
+                catProducts.forEach(p => {
+                    const parent=p['Parent SKU Code']; const child=p['Child SKU Code'];
+                    let variant = (child && child.length>11) ? child.substring(9,12) : (p.Color||'DEFAULT');
+                    const key=`${parent}_${variant}`;
+                    if(!g[key]) g[key]={ parentSKU:parent, variant, color:p.Color, category:p.Category, mrp:p.MRP, imageUrl:p['Image URL']?String(p['Image URL']).trim():'', hsn:p.HSN, sizes:[] };
+                    g[key].sizes.push({ size:p.Size, childSKU:child, wsp:p.WSP });
+                });
+                return Object.values(g);
+            };
+
+            const handleQuantityChange = (sku, quantity) => {
+                const info=getStockInfo(sku);
+                const qty = quantity===''?0:(parseInt(quantity)||0);
+                if (info.quantity!==null && qty>info.quantity){ flash(`❌ Only ${info.quantity} in stock for ${sku}.`); return; }
+                setOrderData(prev => { const n={...prev}; if(qty<=0) delete n[sku]; else n[sku]=qty; return n; });
+            };
+
+            const getCurrentCategoryProducts = () => categories.length? products.filter(p=>p.Category===categories[currentCategory]) : [];
+
             const validateCustomerInfo = () => {
                 const { customerName, customerMobile, city, pincode } = customerData;
-                const mobileRegex = /^\d{10}$/;
-                const pincodeRegex = /^\d{6}$/;
-                
-                return customerName.trim() && 
-                       customerMobile.trim() && mobileRegex.test(customerMobile) &&
-                       city.trim() && 
-                       pincode.trim() && pincodeRegex.test(pincode);
+                return customerName.trim() && /^\d{10}$/.test(customerMobile) && city.trim() && /^\d{6}$/.test(pincode);
             };
 
-            // Indian States
-            const indianStates = [
-                'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh', 'Goa', 'Gujarat', 'Haryana',
-                'Himachal Pradesh', 'Jharkhand', 'Karnataka', 'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Manipur',
-                'Meghalaya', 'Mizoram', 'Nagaland', 'Odisha', 'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu',
-                'Telangana', 'Tripura', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal',
-                'Andaman and Nicobar Islands', 'Chandigarh', 'Dadra and Nagar Haveli and Daman and Diu', 'Delhi',
-                'Jammu and Kashmir', 'Ladakh', 'Lakshadweep', 'Puducherry'
-            ];
+            const indianStates = ['Andhra Pradesh','Arunachal Pradesh','Assam','Bihar','Chhattisgarh','Goa','Gujarat','Haryana','Himachal Pradesh','Jharkhand','Karnataka','Kerala','Madhya Pradesh','Maharashtra','Manipur','Meghalaya','Mizoram','Nagaland','Odisha','Punjab','Rajasthan','Sikkim','Tamil Nadu','Telangana','Tripura','Uttar Pradesh','Uttarakhand','West Bengal','Andaman and Nicobar Islands','Chandigarh','Dadra and Nagar Haveli and Daman and Diu','Delhi','Jammu and Kashmir','Ladakh','Lakshadweep','Puducherry'];
 
-            // Proceed to invoice
             const proceedToInvoice = () => {
-                setInvoiceData(prev => ({
-                    ...prev,
-                    customerName: customerData.customerName,
-                    city: customerData.city,
-                    pincode: customerData.pincode,
-                    contactDetails: customerData.customerMobile
-                }));
+                setInvoiceData(prev => ({ ...prev, customerName:customerData.customerName, city:customerData.city, pincode:customerData.pincode, contactDetails:customerData.customerMobile }));
                 setCurrentStep(5);
             };
 
-            // Calculate invoice totals
             const calculateInvoiceTotals = () => {
-                const orderEntries = Object.keys(orderData).filter(childSKU => orderData[childSKU] > 0);
-                
-                let totalQty = 0;
-                let totalValue = 0;
-                
-                orderEntries.forEach(childSKU => {
-                    const quantity = orderData[childSKU];
-                    const product = products.find(p => p['Child SKU Code'] === childSKU);
-                    if (product) {
-                        totalQty += quantity;
-                        totalValue += quantity * parseFloat(product.WSP || 0);
-                    }
-                });
+                const entries = Object.keys(orderData).filter(s=>orderData[s]>0);
+                let totalQty=0, totalValue=0;
+                entries.forEach(s => { const q=orderData[s]; const p=products.find(x=>x['Child SKU Code']===s); if(p){ totalQty+=q; totalValue+=q*parseFloat(p.WSP||0);} });
+                const discountAmount=(totalValue*invoiceData.cashDiscount)/100;
+                const netAmount=totalValue-discountAmount+parseFloat(invoiceData.logisticsCharges||0);
+                const isMaharashtra=invoiceData.state.toLowerCase().includes('maharashtra');
+                const gstAmount=(netAmount*5)/100;
+                const finalAmount=netAmount+gstAmount;
+                return { totalQty, totalValue, discountAmount, netAmount, gstAmount, finalAmount, isMaharashtra,
+                    cgst:isMaharashtra?gstAmount/2:0, sgst:isMaharashtra?gstAmount/2:0, igst:!isMaharashtra?gstAmount:0 };
+            };
 
-                const discountAmount = (totalValue * invoiceData.cashDiscount) / 100;
-                const netAmount = totalValue - discountAmount + parseFloat(invoiceData.logisticsCharges || 0);
-                
-                const isMaharashtra = invoiceData.state.toLowerCase().includes('maharashtra');
-                const gstRate = 5;
-                const gstAmount = (netAmount * gstRate) / 100;
-                
-                const finalAmount = netAmount + gstAmount;
+            const getOrderProductsWithIndex = () => Object.keys(orderData)
+                .filter(s=>orderData[s]>0)
+                .map(s => ({ childSKU:s, quantity:orderData[s], product:products.find(p=>p['Child SKU Code']===s) }))
+                .filter(i=>i.product)
+                .sort((a,b)=>String(a.product['Parent SKU Code']).localeCompare(String(b.product['Parent SKU Code'])));
 
-                return {
-                    totalQty,
-                    totalValue,
-                    discountAmount,
-                    netAmount,
-                    gstAmount,
-                    finalAmount,
-                    isMaharashtra,
-                    cgst: isMaharashtra ? gstAmount / 2 : 0,
-                    sgst: isMaharashtra ? gstAmount / 2 : 0,
-                    igst: !isMaharashtra ? gstAmount : 0
+            // ---- Load an existing invoice (edit) ----
+            const loadExistingInvoice = (event) => {
+                const file = event.target.files[0]; if(!file) return;
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const text = e.target.result;
+                        const m = text.match(/<script id="umora-pi-data" type="application\/json">([\s\S]*?)<\/script>/);
+                        if (!m) { flash('❌ This file has no editable UMORA invoice data. Only invoices generated by this new tool can be re-edited.'); event.target.value=''; return; }
+                        const data = JSON.parse(m[1]);
+                        setDocType(data.docType || 'PI');
+                        setCustomerData(prev => ({ ...prev, ...(data.customerData||{}) }));
+                        setInvoiceData(prev => ({ ...prev, ...(data.invoiceData||{}) }));
+                        const items = data.lineItems || [];
+                        const prods = items.map(it => it.product);
+                        setProducts(prods);
+                        setCategories([...new Set(prods.map(p=>p.Category))].filter(Boolean));
+                        const od={}; items.forEach(it => { od[it.product['Child SKU Code']] = it.quantity; });
+                        setOrderData(od);
+                        setUploadedCSV('(from existing invoice)');
+                        setEditMode(true);
+                        setMode('flow');
+                        setCurrentStep(5);
+                        flash('✏️ Loaded existing '+(DOC_LABELS[data.docType||'PI'])+' — edit and re-download.');
+                    } catch (err) { flash('❌ Could not read invoice: '+err.message); }
+                    event.target.value='';
                 };
-            };
-            
-            // Helper function to get product data with index for mapping
-            const getOrderProductsWithIndex = () => {
-                const orderEntries = Object.keys(orderData)
-                    .filter(childSKU => orderData[childSKU] > 0)
-                    .map(childSKU => ({
-                        childSKU,
-                        quantity: orderData[childSKU],
-                        product: products.find(p => p['Child SKU Code'] === childSKU)
-                    }))
-                    .filter(item => item.product)
-                    // Ensure products are sorted to keep variants grouped for rowspan logic
-                    .sort((a, b) => a.product['Parent SKU Code'].localeCompare(b.product['Parent SKU Code']));
-
-                let productMap = {};
-                
-                // Group by Parent SKU to calculate rowspan needed for image (now redundant but kept for grouping logic)
-                orderEntries.forEach(item => {
-                    const parentSKU = item.product['Parent SKU Code'];
-                    if (!productMap[parentSKU]) {
-                        productMap[parentSKU] = {
-                            count: 0,
-                            firstIndex: -1,
-                            imageUrl: item.product['Image URL'] || ''
-                        };
-                    }
-                    productMap[parentSKU].count++;
-                });
-
-                let runningIndex = 0;
-                const productsWithRowspan = orderEntries.map((item, originalIndex) => {
-                    const parentSKU = item.product['Parent SKU Code'];
-                    
-                    let rowspan = 0;
-                    let isFirstInGroup = false;
-
-                    // Determine if this is the first row of its group
-                    if (productMap[parentSKU].firstIndex === -1) {
-                        productMap[parentSKU].firstIndex = runningIndex;
-                        rowspan = productMap[parentSKU].count;
-                        isFirstInGroup = true;
-                    }
-                    
-                    runningIndex++;
-
-                    return {
-                        ...item,
-                        rowspan: isFirstInGroup ? rowspan : 0, // only set rowspan for the first item
-                        isFirstInGroup
-                    };
-                });
-
-                return productsWithRowspan;
+                reader.readAsText(file);
             };
 
-
-            // Generate Invoice - Multiple Format Options
+            // ---- Build invoice HTML (with embedded editable data) ----
             const generateInvoiceHTML = () => {
                 const totals = calculateInvoiceTotals();
                 const orderProducts = getOrderProductsWithIndex();
-                
                 const qrCodeUrl = "https://cdn.shopify.com/s/files/1/0612/8861/1913/files/Umora_UP_QR_200_pixel_x_205_pixel.jpg?v=1759408517";
                 const signatureImageUrl = "https://cdn.shopify.com/s/files/1/0612/8861/1913/files/Stamp_signature_100_x_100_pixels.png?v=1759754504";
-                
-                // Total amount in words
                 const totalInWords = numberToWordsIndianSystem(totals.finalAmount);
-                
+                const heading = DOC_LABELS[docType];
+
+                const embed = {
+                    version: 2,
+                    docType,
+                    generatedAt: new Date().toISOString(),
+                    customerData,
+                    invoiceData,
+                    lineItems: orderProducts.map(i => ({ quantity:i.quantity, product:i.product }))
+                };
+                const embedJson = JSON.stringify(embed).replace(/<\/script>/gi,'<\\/script>');
+
                 return `<!DOCTYPE html>
 <html>
 <head>
-    <title>Proforma Invoice</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; font-size: 11px; }
-        .header { text-align: center; border-bottom: 2px solid #000; padding: 20px; }
-        .company-name { font-size: 28px; font-weight: bold; }
-        .invoice-details { display: flex; justify-content: space-between; margin: 20px 0; }
-        .customer-details, .company-details { width: 48%; }
-        .products-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-        .products-table th, .products-table td { border: 1px solid #000; padding: 8px; text-align: left; }
-        .products-table th { background-color: #f0f0f0; }
-        .totals { text-align: right; margin: 20px 0; }
-        .total-line { margin: 5px 0; }
-        .final-total { font-weight: bold; font-size: 14px; border-top: 2px solid #000; padding-top: 10px; }
-        .highlight { background-color: #ffffc0; padding: 5px; border-radius: 3px; } /* Highlight style */
-        
-        /* New styles for footer grid alignment */
-        .invoice-footer-grid {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-end; /* Align contents to the bottom of the container */
-            margin-top: 30px;
-            width: 100%;
-        }
-        .qr-terms-block {
-            width: 50%;
-            text-align: left;
-            padding-right: 20px;
-        }
-        .signature-block {
-            width: 50%;
-            text-align: right;
-        }
-
-        @media print { 
-            body { margin: 10px; }
-            .invoice-footer-grid {
-                /* Ensure it stays on one row for print */
-                page-break-before: auto !important;
-                page-break-after: auto !important;
-            }
-        }
-    </style>
+<title>${heading} ${invoiceData.piNumber}</title>
+<script id="umora-pi-data" type="application/json">${embedJson}<\/script>
+<style>
+ body{font-family:Arial,sans-serif;margin:20px;font-size:11px;}
+ .header{text-align:center;border-bottom:2px solid #000;padding:20px;}
+ .company-name{font-size:28px;font-weight:bold;}
+ .invoice-details{display:flex;justify-content:space-between;margin:20px 0;}
+ .customer-details,.company-details{width:48%;}
+ .products-table{width:100%;border-collapse:collapse;margin:20px 0;}
+ .products-table th,.products-table td{border:1px solid #000;padding:8px;text-align:left;}
+ .products-table th{background:#f0f0f0;}
+ .totals{text-align:right;margin:20px 0;}
+ .total-line{margin:5px 0;}
+ .final-total{font-weight:bold;font-size:14px;border-top:2px solid #000;padding-top:10px;}
+ .highlight{background:#ffffc0;padding:5px;border-radius:3px;}
+ .invoice-footer-grid{display:flex;justify-content:space-between;align-items:flex-end;margin-top:30px;width:100%;}
+ .qr-terms-block{width:50%;text-align:left;padding-right:20px;}
+ .signature-block{width:50%;text-align:right;}
+ @media print{body{margin:10px;}}
+</style>
 </head>
 <body>
-    <div class="header">
-        <div class="company-name">UMORA FASHION PRIVATE LIMITED</div>
-        <div>Register Office: 25, Prabhat Centre Premises Co-op Society Ltd, Plot no 7, Sector 1A, CBD Belapur Navi Mumbai 400614</div>
-        <div>Factory Address: F6/218, Bhumi World Industrial Park, Pimplas Village, Mumbai-Nashik Highway, Thane – 421302</div>
-        <div style="margin-top: 15px; background: #ffeb3b; padding: 10px; font-weight: bold;">
-            PROFORMA INVOICE# ${invoiceData.piNumber} &nbsp;&nbsp;&nbsp; DATE ${new Date().toLocaleDateString('en-GB')}
-        </div>
-        <div style="font-weight: bold; margin-top: 10px;">GSTIN/UIN: 27AADCU5944M1ZR</div>
-    </div>
-
-    <div class="invoice-details">
-        <div class="customer-details">
-            <h3>BUYER DETAILS</h3>
-            <div><strong>CUSTOMER NAME:</strong> ${invoiceData.customerName}</div>
-            <div><strong>ADDRESS LINE 1:</strong> ${invoiceData.addressLine1}</div>
-            <div><strong>ADDRESS LINE 2:</strong> ${invoiceData.addressLine2}</div>
-            <div><strong>CITY:</strong> ${invoiceData.city}</div>
-            <div><strong>PINCODE:</strong> ${invoiceData.pincode}</div>
-            <div><strong>STATE:</strong> ${invoiceData.state}</div>
-            <div><strong>GST NO:</strong> ${invoiceData.gstNo}</div>
-            <div><strong>CONTACT PERSON:</strong> ${invoiceData.contactPerson}</div>
-            <div><strong>CONTACT DETAILS:</strong> ${invoiceData.contactDetails}</div>
-        </div>
-        <div class="company-details">
-            <h3>BANKING DETAILS</h3>
-            <div><strong>UMORA FASHION PVT LTD</strong></div>
-            <div>ICICI BANK VASHI</div>
-            <div>IFSC Code: ICIC0001881</div>
-            <div>A/c No: 188105002877</div>
-            <div style="margin-top: 20px;">
-                <div><strong>TOTAL CARTONS:</strong> ${invoiceData.totalCartons}</div>
-                <div><strong>E-WAY BILL:</strong> ${invoiceData.ewayBillNumber}</div>
-                <div><strong>PAYMENT TERMS:</strong> ${invoiceData.paymentTerms === 'OTHER' ? invoiceData.customPaymentTerms : invoiceData.paymentTerms}</div>
-                <div><strong>LOGISTICS CHARGES:</strong> ${invoiceData.logisticsCharges > 0 ? '₹' + invoiceData.logisticsCharges.toFixed(2) : 'FREE'}</div>
-            </div>
-        </div>
-    </div>
-
-    <table class="products-table">
-        <thead>
-            <tr>
-                <th>S NO</th>
-                <th>Product Code</th>
-                <th>Size</th>
-                <th>Category</th>
-                <th>Color</th>
-                <th>HSN</th>
-                <th>Qty</th>
-                <th>MRP</th>
-                <th>Rate</th>
-                <th>Amount</th>
-            </tr>
-        </thead>
-        <tbody>
-            ${orderProducts.map((item, index) => {
-                const { product, quantity } = item;
-                const lineTotal = quantity * parseFloat(product.WSP || 0);
-                
-                return `
-                    <tr>
-                        <td>${index + 1}</td>
-                        <td>${product['Child SKU Code']}</td>
-                        <td>${product.Size}</td>
-                        <td>${product.Category}</td>
-                        <td>${product.Color}</td>
-                        <td>${product.HSN}</td>
-                        <td><strong>${quantity}</strong></td>
-                        <td>₹${product.MRP}</td>
-                        <td><strong>₹${product.WSP}</strong></td>
-                        <td><strong>₹${lineTotal.toFixed(2)}</strong></td>
-                    </tr>
-                `;
-            }).join('')}
-        </tbody>
-    </table>
-
-    <div class="totals">
-        <div class="total-line">Total Quantity: <strong>${totals.totalQty}</strong></div>
-        <div class="total-line">Total Value: <strong>₹${totals.totalValue.toFixed(2)}</strong></div>
-        ${invoiceData.cashDiscount > 0 ? `<div class="total-line">Cash Discount (${invoiceData.cashDiscount}%): <strong>₹${totals.discountAmount.toFixed(2)}</strong></div>` : ''}
-        ${invoiceData.logisticsCharges > 0 ? `<div class="total-line">Logistics Charges: <strong>₹${invoiceData.logisticsCharges.toFixed(2)}</strong></div>` : ''}
-        <div class="total-line">Net Amount: <strong>₹${totals.netAmount.toFixed(2)}</strong></div>
-        ${totals.isMaharashtra ? 
-            `<div class="total-line">CGST @ 2.5%: <strong>₹${totals.cgst.toFixed(2)}</strong></div>
-             <div class="total-line">SGST @ 2.5%: <strong>₹${totals.sgst.toFixed(2)}</strong></div>` :
-            `<div class="total-line">IGST @ 5%: <strong>₹${totals.igst.toFixed(2)}</strong></div>`
-        }
-        <div class="final-total">TOTAL INVOICE VALUE: <strong>₹${totals.finalAmount.toFixed(2)}</strong></div>
-    </div>
-    
-    <!-- Total in Words (Highlighted) -->
-    <div style="margin-top: 15px; font-size: 12px; font-weight: bold; margin-bottom: 30px;">
-        Total Invoice Value in Words: 
-        <span class="highlight">${totalInWords}</span>
-    </div>
-
-    <!-- QR Code and Signature Section (Aligned in a row) -->
-    <div class="invoice-footer-grid">
-        <!-- Left Block: QR Code and Terms -->
-        <div class="qr-terms-block">
-            <!-- QR Code Section -->
-            <div style="margin-bottom: 20px;">
-                <img src="${qrCodeUrl}" alt="Payment QR Code" style="width: 200px; height: 205px; border: 1px solid #ddd; padding: 5px; display: block;">
-                <div style="font-size: 10px; color: #555; margin-top: 5px;"><strong>Scan to Pay via UPI</strong></div>
-            </div>
-
-            <!-- Updated Terms and Conditions -->
-            <div style="font-weight: bold;">
-                Terms and Conditions:<br>
-                PLEASE MAKE THE PAYMENT AND UPDATE US WITH A SCREEN SHOT
-            </div>
-        </div>
-
-        <!-- Right Block: Signature and Signatory -->
-        <div class="signature-block">
-            <!-- Signature Image and Authorized Signatory (All Caps) -->
-            <div style="font-weight: bold; display: inline-block; text-align: center;">
-                <img src="${signatureImageUrl}" alt="Authorized Signature" style="width: 150px; height: auto; display: block; margin-left: auto;">
-                <div style="margin-top: 5px;">AUTHORIZED SIGNATORY</div>
-            </div>
-        </div>
-    </div>
+ <div class="header">
+  <div class="company-name">UMORA FASHION PRIVATE LIMITED</div>
+  <div>Register Office: 25, Prabhat Centre Premises Co-op Society Ltd, Plot no 7, Sector 1A, CBD Belapur Navi Mumbai 400614</div>
+  <div>Factory Address: F6/218, Bhumi World Industrial Park, Pimplas Village, Mumbai-Nashik Highway, Thane – 421302</div>
+  <div style="margin-top:15px;background:#ffeb3b;padding:10px;font-weight:bold;">
+   ${heading}# ${invoiceData.piNumber} &nbsp;&nbsp;&nbsp; DATE ${new Date().toLocaleDateString('en-GB')}
+  </div>
+  <div style="font-weight:bold;margin-top:10px;">GSTIN/UIN: 27AADCU5944M1ZR</div>
+ </div>
+ <div class="invoice-details">
+  <div class="customer-details">
+   <h3>BUYER DETAILS</h3>
+   <div><strong>CUSTOMER NAME:</strong> ${invoiceData.customerName}</div>
+   <div><strong>ADDRESS LINE 1:</strong> ${invoiceData.addressLine1}</div>
+   <div><strong>ADDRESS LINE 2:</strong> ${invoiceData.addressLine2}</div>
+   <div><strong>CITY:</strong> ${invoiceData.city}</div>
+   <div><strong>PINCODE:</strong> ${invoiceData.pincode}</div>
+   <div><strong>STATE:</strong> ${invoiceData.state}</div>
+   <div><strong>GST NO:</strong> ${invoiceData.gstNo}</div>
+   <div><strong>CONTACT PERSON:</strong> ${invoiceData.contactPerson}</div>
+   <div><strong>CONTACT DETAILS:</strong> ${invoiceData.contactDetails}</div>
+  </div>
+  <div class="company-details">
+   <h3>BANKING DETAILS</h3>
+   <div><strong>UMORA FASHION PVT LTD</strong></div>
+   <div>ICICI BANK VASHI</div>
+   <div>IFSC Code: ICIC0001881</div>
+   <div>A/c No: 188105002877</div>
+   <div style="margin-top:20px;">
+    <div><strong>TOTAL CARTONS:</strong> ${invoiceData.totalCartons}</div>
+    <div><strong>E-WAY BILL:</strong> ${invoiceData.ewayBillNumber}</div>
+    <div><strong>PAYMENT TERMS:</strong> ${invoiceData.paymentTerms==='OTHER'?invoiceData.customPaymentTerms:invoiceData.paymentTerms}</div>
+    <div><strong>LOGISTICS CHARGES:</strong> ${invoiceData.logisticsCharges>0?'₹'+parseFloat(invoiceData.logisticsCharges).toFixed(2):'FREE'}</div>
+   </div>
+  </div>
+ </div>
+ <table class="products-table">
+  <thead><tr><th>S NO</th><th>Product Code</th><th>Size</th><th>Category</th><th>Color</th><th>HSN</th><th>Qty</th><th>MRP</th><th>Rate</th><th>Amount</th></tr></thead>
+  <tbody>
+  ${orderProducts.map((item,i)=>{ const {product,quantity}=item; const lt=quantity*parseFloat(product.WSP||0);
+    return `<tr><td>${i+1}</td><td>${product['Child SKU Code']}</td><td>${product.Size}</td><td>${product.Category}</td><td>${product.Color}</td><td>${product.HSN}</td><td><strong>${quantity}</strong></td><td>₹${product.MRP}</td><td><strong>₹${product.WSP}</strong></td><td><strong>₹${lt.toFixed(2)}</strong></td></tr>`;
+  }).join('')}
+  </tbody>
+ </table>
+ <div class="totals">
+  <div class="total-line">Total Quantity: <strong>${totals.totalQty}</strong></div>
+  <div class="total-line">Total Value: <strong>₹${totals.totalValue.toFixed(2)}</strong></div>
+  ${invoiceData.cashDiscount>0?`<div class="total-line">Cash Discount (${invoiceData.cashDiscount}%): <strong>₹${totals.discountAmount.toFixed(2)}</strong></div>`:''}
+  ${invoiceData.logisticsCharges>0?`<div class="total-line">Logistics Charges: <strong>₹${parseFloat(invoiceData.logisticsCharges).toFixed(2)}</strong></div>`:''}
+  <div class="total-line">Net Amount: <strong>₹${totals.netAmount.toFixed(2)}</strong></div>
+  ${totals.isMaharashtra?`<div class="total-line">CGST @ 2.5%: <strong>₹${totals.cgst.toFixed(2)}</strong></div><div class="total-line">SGST @ 2.5%: <strong>₹${totals.sgst.toFixed(2)}</strong></div>`:`<div class="total-line">IGST @ 5%: <strong>₹${totals.igst.toFixed(2)}</strong></div>`}
+  <div class="final-total">TOTAL INVOICE VALUE: <strong>₹${totals.finalAmount.toFixed(2)}</strong></div>
+ </div>
+ <div style="margin-top:15px;font-size:12px;font-weight:bold;margin-bottom:30px;">
+  Total Invoice Value in Words: <span class="highlight">${totalInWords}</span>
+ </div>
+ <div class="invoice-footer-grid">
+  <div class="qr-terms-block">
+   <div style="margin-bottom:20px;">
+    <img src="${qrCodeUrl}" alt="QR" style="width:200px;height:205px;border:1px solid #ddd;padding:5px;display:block;">
+    <div style="font-size:10px;color:#555;margin-top:5px;"><strong>Scan to Pay via UPI</strong></div>
+   </div>
+   <div style="font-weight:bold;">Terms and Conditions:<br>PLEASE MAKE THE PAYMENT AND UPDATE US WITH A SCREEN SHOT</div>
+  </div>
+  <div class="signature-block">
+   <div style="font-weight:bold;display:inline-block;text-align:center;">
+    <img src="${signatureImageUrl}" alt="Signature" style="width:150px;height:auto;display:block;margin-left:auto;">
+    <div style="margin-top:5px;">AUTHORIZED SIGNATORY</div>
+   </div>
+  </div>
+ </div>
 </body>
 </html>`;
             };
 
-            // Download as HTML
+            const fileBase = () => `${docType}_${String(invoiceData.piNumber).replace(/[^a-zA-Z0-9]/g,'_')}_${String(invoiceData.customerName).replace(/[^a-zA-Z0-9]/g,'_')}`;
+
             const downloadAsHTML = () => {
-                const htmlContent = generateInvoiceHTML();
-                const blob = new Blob([htmlContent], { type: 'text/html' });
-                const url = URL.createObjectURL(blob);
-                const link = document.createElement('a');
-                link.href = url;
-                link.download = `Invoice_${invoiceData.piNumber.replace('/', '_')}_${invoiceData.customerName.replace(/[^a-zA-Z0-9]/g, '_')}.html`;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                URL.revokeObjectURL(url);
-                // Using console.log instead of alert()
-                console.log('✅ HTML Invoice downloaded successfully!');
-                setShowDownloadOptions(false);
+                const blob=new Blob([generateInvoiceHTML()],{type:'text/html'});
+                const url=URL.createObjectURL(blob); const a=document.createElement('a');
+                a.href=url; a.download=fileBase()+'.html'; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+                flash('✅ HTML downloaded (re-uploadable for editing).'); setShowDownloadOptions(false);
             };
-
-            // Download as PDF (Print to PDF)
             const downloadAsPDF = () => {
-                const htmlContent = generateInvoiceHTML();
-                const newWindow = window.open('', '_blank');
-                newWindow.document.write(htmlContent);
-                newWindow.document.close();
-                
-                setTimeout(() => {
-                    newWindow.print();
-                    // Using console.log instead of alert()
-                    console.log('📄 Print dialog opened! Choose "Save as PDF" in the print dialog.');
-                }, 500);
-                setShowDownloadOptions(false);
+                const w=window.open('','_blank'); w.document.write(generateInvoiceHTML()); w.document.close();
+                setTimeout(()=>w.print(),500); setShowDownloadOptions(false);
+            };
+            const downloadAsExcel = () => {
+                const totals=calculateInvoiceTotals(); const wb=XLSX.utils.book_new();
+                const header=[['UMORA FASHION PRIVATE LIMITED'],[DOC_LABELS[docType]],[''],['Invoice Number:',invoiceData.piNumber],['Date:',new Date().toLocaleDateString('en-GB')],[''],['CUSTOMER DETAILS:'],['Customer Name:',invoiceData.customerName],['Address Line 1:',invoiceData.addressLine1],['Address Line 2:',invoiceData.addressLine2],['City:',invoiceData.city],['Pincode:',invoiceData.pincode],['State:',invoiceData.state],['GST Number:',invoiceData.gstNo],['Contact Person:',invoiceData.contactPerson],['Contact Details:',invoiceData.contactDetails],[''],['PRODUCTS:']];
+                const pdata=[['S.No','Parent SKU','Product Code','Size','Category','Color','HSN','Quantity','MRP','Rate','Amount','Image URL (Reference)']];
+                getOrderProductsWithIndex().forEach((item,i)=>{ const {product,quantity}=item; const lt=quantity*parseFloat(product.WSP||0);
+                    pdata.push([i+1,product['Parent SKU Code'],product['Child SKU Code'],product.Size,product.Category,product.Color,product.HSN,quantity,`₹${product.MRP}`,`₹${product.WSP}`,`₹${lt.toFixed(2)}`, product['Image URL']||'N/A']); });
+                const tdata=[[''],['TOTALS:'],['Total Quantity:',totals.totalQty],['Total Value:',`₹${totals.totalValue.toFixed(2)}`]];
+                if(invoiceData.cashDiscount>0) tdata.push(['Cash Discount:',`₹${totals.discountAmount.toFixed(2)}`]);
+                if(invoiceData.logisticsCharges>0) tdata.push(['Logistics Charges:',`₹${parseFloat(invoiceData.logisticsCharges).toFixed(2)}`]);
+                tdata.push(['Net Amount:',`₹${totals.netAmount.toFixed(2)}`]);
+                if(totals.isMaharashtra){ tdata.push(['CGST @ 2.5%:',`₹${totals.cgst.toFixed(2)}`]); tdata.push(['SGST @ 2.5%:',`₹${totals.sgst.toFixed(2)}`]); }
+                else tdata.push(['IGST @ 5%:',`₹${totals.igst.toFixed(2)}`]);
+                tdata.push(['FINAL AMOUNT:',`₹${totals.finalAmount.toFixed(2)}`]); tdata.push(['TOTAL IN WORDS:',numberToWordsIndianSystem(totals.finalAmount)]);
+                const ws=XLSX.utils.aoa_to_sheet([...header,...pdata,...tdata]);
+                XLSX.utils.book_append_sheet(wb,ws,'Invoice');
+                XLSX.writeFile(wb, fileBase()+'.xlsx'); setShowDownloadOptions(false);
             };
 
-            // Download as Excel
-            const downloadAsExcel = () => {
-                const totals = calculateInvoiceTotals();
-                // Get raw entries to ensure all item details are present in spreadsheet
-                const orderEntries = Object.keys(orderData).filter(childSKU => orderData[childSKU] > 0);
-                
-                // Create workbook
-                const wb = XLSX.utils.book_new();
-                
-                // Invoice Header Data
-                const headerData = [
-                    ['UMORA FASHION PRIVATE LIMITED'],
-                    ['PROFORMA INVOICE'],
-                    [''],
-                    ['Invoice Number:', invoiceData.piNumber],
-                    ['Date:', new Date().toLocaleDateString('en-GB')],
-                    [''],
-                    ['CUSTOMER DETAILS:'],
-                    ['Customer Name:', invoiceData.customerName],
-                    ['Address Line 1:', invoiceData.addressLine1],
-                    ['Address Line 2:', invoiceData.addressLine2],
-                    ['City:', invoiceData.city],
-                    ['Pincode:', invoiceData.pincode],
-                    ['State:', invoiceData.state],
-                    ['GST Number:', invoiceData.gstNo],
-                    ['Contact Person:', invoiceData.contactPerson],
-                    ['Contact Details:', invoiceData.contactDetails],
-                    [''],
-                    ['PRODUCTS:']
-                ];
-                
-                // Products Data
-                // NOTE: The excel download still includes Image URL (Reference) for data integrity, but the invoice HTML no longer shows the image column.
-                const productHeaders = ['S.No', 'Parent SKU', 'Product Code', 'Size', 'Category', 'Color', 'HSN', 'Quantity', 'MRP', 'Rate', 'Amount', 'Image URL (Reference)'];
-                const productData = [productHeaders];
-                
-                // Re-sort and group data for accurate output mapping
-                const mappedOrderProducts = getOrderProductsWithIndex();
-
-                mappedOrderProducts.forEach((item, index) => {
-                    const { product, quantity } = item;
-                    const lineTotal = quantity * parseFloat(product.WSP || 0);
-
-                    // Add the image URL to the spreadsheet as a reference link
-                    const imageUrlRef = product.imageUrl && product.imageUrl.trim() !== '' ? product.imageUrl : 'N/A (Missing)';
-
-                    productData.push([
-                        index + 1,
-                        product['Parent SKU Code'], // Include Parent SKU for clarity
-                        product['Child SKU Code'],
-                        product.Size,
-                        product.Category,
-                        product.Color,
-                        product.HSN,
-                        quantity,
-                        `₹${product.MRP}`,
-                        `₹${product.WSP}`,
-                        `₹${lineTotal.toFixed(2)}`,
-                        imageUrlRef // Include Image URL as text reference
-                    ]);
-                });
-                
-                // Totals Data
-                const totalInWords = numberToWordsIndianSystem(totals.finalAmount);
-                const totalsData = [
-                    [''],
-                    ['TOTALS:'],
-                    ['Total Quantity:', totals.totalQty],
-                    ['Total Value:', `₹${totals.totalValue.toFixed(2)}`]
-                ];
-                
-                if (invoiceData.cashDiscount > 0) {
-                    totalsData.push(['Cash Discount:', `₹${totals.discountAmount.toFixed(2)}`]);
-                }
-                
-                if (invoiceData.logisticsCharges > 0) {
-                    totalsData.push(['Logistics Charges:', `₹${invoiceData.logisticsCharges.toFixed(2)}`]);
-                }
-                
-                totalsData.push(['Net Amount:', `₹${totals.netAmount.toFixed(2)}`]);
-                
-                if (totals.isMaharashtra) {
-                    totalsData.push(['CGST @ 2.5%:', `₹${totals.cgst.toFixed(2)}`]);
-                    totalsData.push(['SGST @ 2.5%:', `₹${totals.sgst.toFixed(2)}`]);
-                } else {
-                    totalsData.push(['IGST @ 5%:', `₹${totals.igst.toFixed(2)}`]);
-                }
-                
-                totalsData.push(['FINAL AMOUNT:', `₹${totals.finalAmount.toFixed(2)}`]);
-                totalsData.push(['TOTAL IN WORDS:', totalInWords]);
-                
-                // Combine all data
-                const allData = [...headerData, ...productData, ...totalsData];
-                
-                // Create worksheet
-                const ws = XLSX.utils.aoa_to_sheet(allData);
-                
-                // Add worksheet to workbook
-                XLSX.utils.book_append_sheet(wb, ws, 'Invoice');
-                
-                // Download
-                XLSX.writeFile(wb, `Invoice_${invoiceData.piNumber.replace('/', '_')}_${invoiceData.customerName.replace(/[^a-zA-Z0-9]/g, '_')}.xlsx`);
-                // Using console.log instead of alert()
-                console.log('✅ Excel Invoice downloaded successfully!');
-                setShowDownloadOptions(false);
+            const resetAll = () => {
+                setMode('start'); setEditMode(false); setCurrentStep(1);
+                setCustomerData({ date:new Date().toISOString().split('T')[0], customerName:'', customerMobile:'', city:'', pincode:'' });
+                setInvoiceData({ customerName:'', addressLine1:'', addressLine2:'', city:'', pincode:'', state:'', gstNo:'', contactPerson:'', contactDetails:'', totalCartons:'', ewayBillNumber:'', paymentTerms:'100% ADVANCE', customPaymentTerms:'', logisticsCharges:0, cashDiscount:0, piNumber:'13/2025-26' });
+                setProducts([]); setCategories([]); setCurrentCategory(0); setUploadedCSV(null);
+                setOrderData({}); setInventoryData({}); setUploadedInventoryFiles([]);
             };
 
             const { totalItems, totalValue } = orderSummary;
+            const stepNames = ['Customer','Catalog','Inventory','Orders','Invoice'];
 
-            return (
-                <>
-                    <div style={{ padding: '20px', minHeight: '100vh' }}>
-                        <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
-                            {/* Header */}
-                            <div className="card" style={{ padding: '40px', marginBottom: '30px', textAlign: 'center' }}>
-                                <h1 style={{ fontSize: '32px', fontWeight: 'bold', background: 'linear-gradient(to right, #3b82f6, #8b5cf6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', marginBottom: '30px' }}>
-                                    UMORA Product Catalog Management System
-                                </h1>
-                                
-                                {/* Progress Steps */}
-                                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '15px', flexWrap: 'wrap' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                        <div className={`progress-step ${currentStep >= 1 ? (currentStep > 1 ? 'completed' : 'active') : 'inactive'}`}>
-                                            {currentStep > 1 ? '✓' : '1'}
-                                        </div>
-                                        <span style={{ fontWeight: 'bold' }}>Customer</span>
-                                    </div>
-                                    
-                                    <span style={{ color: '#9ca3af' }}>→</span>
-                                    
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                        <div className={`progress-step ${currentStep >= 2 ? (currentStep > 2 ? 'completed' : 'active') : 'inactive'}`}>
-                                            {currentStep > 2 ? '✓' : '2'}
-                                        </div>
-                                        <span style={{ fontWeight: 'bold' }}>Catalog</span>
-                                    </div>
-                                    
-                                    <span style={{ color: '#9ca3af' }}>→</span>
-                                    
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                        <div className={`progress-step ${currentStep >= 3 ? (currentStep > 3 ? 'completed' : 'active') : 'inactive'}`}>
-                                            {currentStep > 3 ? '✓' : '3'}
-                                        </div>
-                                        <span style={{ fontWeight: 'bold' }}>Inventory</span>
-                                    </div>
-                                    
-                                    <span style={{ color: '#9ca3af' }}>→</span>
-                                    
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                        <div className={`progress-step ${currentStep >= 4 ? (currentStep > 4 ? 'completed' : 'active') : 'inactive'}`}>
-                                            {currentStep > 4 ? '✓' : '4'}
-                                        </div>
-                                        <span style={{ fontWeight: 'bold' }}>Orders</span>
-                                    </div>
-                                    
-                                    <span style={{ color: '#9ca3af' }}>→</span>
-                                    
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                        <div className={`progress-step ${currentStep >= 5 ? 'active' : 'inactive'}`}>
-                                            5
-                                        </div>
-                                        <span style={{ fontWeight: 'bold' }}>Invoice</span>
-                                    </div>
-                                </div>
+            // ================= START SCREEN =================
+            if (mode === 'start') {
+                return (
+                    <div style={{ maxWidth:'760px', margin:'0 auto', padding:'40px 20px' }}>
+                        <div className="card" style={{ padding:'40px', textAlign:'center' }}>
+                            <h1 style={{ fontSize:'30px', fontWeight:800, background:'linear-gradient(to right,var(--brand1),var(--brand2))', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent', margin:'0 0 8px' }}>
+                                UMORA Invoice Generator
+                            </h1>
+                            <p style={{ color:'#6b7280', marginTop:0 }}>Create a Proforma Invoice or Tax Invoice — or re-open an existing one to edit.</p>
+
+                            <div style={{ margin:'28px 0 10px', fontWeight:700 }}>1 · Choose document type</div>
+                            <div className="doc-toggle" style={{ marginBottom:'30px' }}>
+                                <button className={docType==='PI'?'on':''} onClick={()=>setDocType('PI')}>Proforma Invoice (PI)</button>
+                                <button className={docType==='TI'?'on':''} onClick={()=>setDocType('TI')}>Tax Invoice (TI)</button>
                             </div>
 
-                            {/* Step 1: Customer Details */}
-                            {currentStep === 1 && (
-                                <div className="card" style={{ padding: '40px' }}>
-                                    <h2 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '30px', display: 'flex', alignItems: 'center' }}>
-                                        👤 Customer Information
-                                    </h2>
-                                    
-                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
-                                        <div>
-                                            <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px' }}>📅 Date</label>
-                                            <input
-                                                type="date"
-                                                className="input-field"
-                                                value={customerData.date}
-                                                onChange={(e) => setCustomerData({...customerData, date: e.target.value})}
-                                            />
+                            <div style={{ fontWeight:700, marginBottom:'14px' }}>2 · Start</div>
+                            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'18px' }}>
+                                <div style={{ border:'2px solid #eef0f6', borderRadius:'12px', padding:'26px' }}>
+                                    <div style={{ fontSize:'34px' }}>🆕</div>
+                                    <h3 style={{ margin:'10px 0 6px' }}>Create New</h3>
+                                    <p style={{ fontSize:'13px', color:'#6b7280', minHeight:'40px' }}>Start a fresh {DOC_LABELS[docType]} from the catalog.</p>
+                                    <button className="btn-primary" style={{ width:'100%' }} onClick={()=>{ setEditMode(false); setMode('flow'); setCurrentStep(1); }}>Start →</button>
+                                </div>
+                                <div style={{ border:'2px solid #eef0f6', borderRadius:'12px', padding:'26px' }}>
+                                    <div style={{ fontSize:'34px' }}>✏️</div>
+                                    <h3 style={{ margin:'10px 0 6px' }}>Edit Existing</h3>
+                                    <p style={{ fontSize:'13px', color:'#6b7280', minHeight:'40px' }}>Upload an invoice made by this tool to change and re-download.</p>
+                                    <input type="file" accept=".html,.htm" ref={editInputRef} style={{ display:'none' }} onChange={loadExistingInvoice} />
+                                    <button className="btn-secondary" style={{ width:'100%' }} onClick={()=>editInputRef.current?.click()}>Upload Invoice…</button>
+                                </div>
+                            </div>
+                            {notice && <div style={{ marginTop:'22px', padding:'12px', borderRadius:'8px', background:'#eef2ff', color:'#3730a3', fontWeight:600 }}>{notice}</div>}
+                            <p style={{ marginTop:'26px', fontSize:'12px', color:'#9ca3af' }}>Tip: upload the single merged file <strong>UMORA_Master_Catalog_Winter_NonWinter.csv</strong> at the Catalog step.</p>
+                        </div>
+                    </div>
+                );
+            }
+
+            // ================= MAIN FLOW =================
+            return (
+                <>
+                    <div style={{ padding:'20px' }}>
+                        <div style={{ maxWidth:'1200px', margin:'0 auto' }}>
+                            {/* Header */}
+                            <div className="card" style={{ padding:'26px 32px', marginBottom:'24px' }}>
+                                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:'16px' }}>
+                                    <h1 style={{ fontSize:'24px', fontWeight:800, background:'linear-gradient(to right,var(--brand1),var(--brand2))', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent', margin:0 }}>
+                                        UMORA {DOC_LABELS[docType]} {editMode && '· Editing'}
+                                    </h1>
+                                    <div style={{ display:'flex', alignItems:'center', gap:'14px' }}>
+                                        <span style={{ fontSize:'13px', color:'#6b7280', fontWeight:600 }}>Document:</span>
+                                        <div className="doc-toggle">
+                                            <button className={docType==='PI'?'on':''} onClick={()=>setDocType('PI')}>PI</button>
+                                            <button className={docType==='TI'?'on':''} onClick={()=>setDocType('TI')}>TI</button>
                                         </div>
-                                        
-                                        <div>
-                                            <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px' }}>👤 Customer Name *</label>
-                                            <input
-                                                type="text"
-                                                className="input-field"
-                                                value={customerData.customerName}
-                                                onChange={(e) => setCustomerData({...customerData, customerName: e.target.value})}
-                                                placeholder="Enter customer name"
-                                            />
-                                        </div>
-                                        
-                                        <div>
-                                            <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px' }}>📱 Mobile Number * (10 digits)</label>
-                                            <input
-                                                type="tel"
-                                                className="input-field"
-                                                value={customerData.customerMobile}
-                                                onChange={(e) => {
-                                                    const value = e.target.value.replace(/\D/g, '');
-                                                    if (value.length <= 10) {
-                                                        setCustomerData({...customerData, customerMobile: value});
-                                                    }
-                                                }}
-                                                placeholder="Enter 10-digit mobile number"
-                                                maxLength="10"
-                                            />
-                                            {customerData.customerMobile && !/^\d{10}$/.test(customerData.customerMobile) && (
-                                                <p style={{ color: '#ef4444', fontSize: '14px', marginTop: '5px' }}>Please enter exactly 10 digits</p>
-                                            )}
-                                        </div>
-                                        
-                                        <div>
-                                            <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px' }}>🏙️ City *</label>
-                                            <input
-                                                type="text"
-                                                className="input-field"
-                                                value={customerData.city}
-                                                onChange={(e) => setCustomerData({...customerData, city: e.target.value})}
-                                                placeholder="Enter city"
-                                            />
-                                        </div>
-                                        
-                                        <div>
-                                            <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px' }}>📍 Pincode * (6 digits)</label>
-                                            <input
-                                                type="text"
-                                                className="input-field"
-                                                value={customerData.pincode}
-                                                onChange={(e) => {
-                                                    const value = e.target.value.replace(/\D/g, '');
-                                                    if (value.length <= 6) {
-                                                        setCustomerData({...customerData, pincode: value});
-                                                    }
-                                                }}
-                                                placeholder="Enter 6-digit pincode"
-                                                maxLength="6"
-                                            />
-                                            {customerData.pincode && !/^\d{6}$/.test(customerData.pincode) && (
-                                                <p style={{ color: '#ef4444', fontSize: '14px', marginTop: '5px' }}>Please enter exactly 6 digits</p>
-                                            )}
-                                        </div>
-                                    </div>
-                                    
-                                    <div style={{ marginTop: '30px', textAlign: 'right' }}>
-                                        <button
-                                            className="btn-primary"
-                                            onClick={() => {
-                                                if (validateCustomerInfo()) {
-                                                    setCurrentStep(2);
-                                                } else {
-                                                    console.error('⚠️ Please fill in all customer details correctly');
-                                                }
-                                            }}
-                                            disabled={!validateCustomerInfo()}
-                                            style={{ opacity: validateCustomerInfo() ? 1 : 0.5 }}
-                                        >
-                                            Next Step →
-                                        </button>
+                                        <button className="btn-secondary" onClick={resetAll}>⌂ Start Over</button>
                                     </div>
                                 </div>
-                            )}
-
-                            {/* Step 2: Upload Product Catalog */}
-                            {currentStep === 2 && (
-                                <div className="card" style={{ padding: '40px' }}>
-                                    <h2 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '30px' }}>
-                                        📁 Upload Product Catalog
-                                    </h2>
-                                    
-                                    <div style={{ border: '2px dashed #d1d5db', borderRadius: '12px', padding: '60px', textAlign: 'center', background: 'linear-gradient(to bottom right, #f9fafb, #f3f4f6)' }}>
-                                        <input
-                                            type="file"
-                                            accept=".csv"
-                                            onChange={handleCSVUpload}
-                                            ref={fileInputRef}
-                                            style={{ display: 'none' }}
-                                        />
-                                        
-                                        <div style={{ width: '80px', height: '80px', background: 'linear-gradient(to right, #3b82f6, #8b5cf6)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', color: 'white', fontSize: '32px' }}>
-                                            📄
-                                        </div>
-                                        
-                                        <h3 style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '10px' }}>
-                                            {uploadedCSV ? `✅ Uploaded: ${uploadedCSV}` : 'Upload your product catalog CSV'}
-                                        </h3>
-                                        
-                                        <p style={{ color: '#6b7280', marginBottom: '30px' }}>
-                                            {uploadedCSV 
-                                                ? `${products.length} products loaded across ${categories.length} categories` 
-                                                : 'CSV should contain: Parent SKU Code, Child SKU Code, Color, Size, Category, MRP, WSP, Image URL, HSN'
-                                            }
-                                        </p>
-                                        
-                                        <button
-                                            className="btn-primary"
-                                            onClick={() => fileInputRef.current?.click()}
-                                        >
-                                            📁 {uploadedCSV ? 'Change File' : 'Upload CSV'}
-                                        </button>
-                                    </div>
-                                    
-                                    {uploadedCSV && (
-                                        <div style={{ marginTop: '30px', display: 'flex', justifyContent: 'space-between' }}>
-                                            <button
-                                                className="btn-secondary"
-                                                onClick={() => setCurrentStep(1)}
-                                            >
-                                                ← Back
-                                            </button>
-                                            <button
-                                                className="btn-primary"
-                                                onClick={() => setCurrentStep(3)}
-                                            >
-                                                Next: Inventory Data →
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-
-                            {/* Step 3: Upload Inventory */}
-                            {currentStep === 3 && (
-                                <div className="card" style={{ padding: '40px' }}>
-                                    <h2 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '30px' }}>
-                                        📦 Upload Inventory Data
-                                    </h2>
-                                    
-                                    <div style={{ border: '2px dashed #22c55e', borderRadius: '12px', padding: '60px', textAlign: 'center', background: 'linear-gradient(to bottom right, #f0fdf4, #dcfce7)' }}>
-                                        <input
-                                            type="file"
-                                            accept=".csv"
-                                            onChange={handleInventoryUpload}
-                                            ref={inventoryFileInputRef}
-                                            style={{ display: 'none' }}
-                                        />
-                                        
-                                        <div style={{ width: '80px', height: '80px', background: 'linear-gradient(to right, #22c55e, #16a34a)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', color: 'white', fontSize: '32px' }}>
-                                            📦
-                                        </div>
-                                        
-                                        <h3 style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '10px' }}>
-                                            {uploadedInventoryCSV ? `✅ Inventory Loaded: ${uploadedInventoryCSV}` : 'Upload inventory CSV from your system'}
-                                        </h3>
-                                        
-                                        <p style={{ color: '#6b7280', marginBottom: '30px' }}>
-                                            {uploadedInventoryCSV 
-                                                ? `${Object.keys(inventoryData).length} SKUs loaded from inventory system` 
-                                                : 'CSV should contain: sku (or Child SKU Code), old_quantity (or quantity/stock)'
-                                            }
-                                        </p>
-                                        
-                                        <button
-                                            className="btn-primary"
-                                            onClick={() => inventoryFileInputRef.current?.click()}
-                                            style={{ background: 'linear-gradient(to right, #22c55e, #16a34a)' }}
-                                        >
-                                            📦 {uploadedInventoryCSV ? 'Change Inventory File' : 'Upload Inventory CSV'}
-                                        </button>
-                                    </div>
-                                    
-                                    {uploadedInventoryCSV && (
-                                        <>
-                                            {/* Inventory Statistics */}
-                                            <div style={{ marginTop: '30px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px' }}>
-                                                <div style={{ background: '#dbeafe', padding: '20px', borderRadius: '12px', border: '1px solid #93c5fd' }}>
-                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                        <div>
-                                                            <p style={{ color: '#1d4ed8', fontWeight: 'bold', margin: '0 0 5px 0' }}>Total Product SKUs</p>
-                                                            <p style={{ fontSize: '24px', fontWeight: 'bold', color: '#1e40af', margin: 0 }}>{inventoryStats.totalSKUs}</p>
-                                                        </div>
-                                                        <span style={{ fontSize: '24px' }}>📄</span>
-                                                    </div>
-                                                </div>
-                                                
-                                                <div style={{ background: '#dcfce7', padding: '20px', borderRadius: '12px', border: '1px solid #86efac' }}>
-                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                        <div>
-                                                            <p style={{ color: '#16a34a', fontWeight: 'bold', margin: '0 0 5px 0' }}>Matched with Inventory</p>
-                                                            <p style={{ fontSize: '24px', fontWeight: 'bold', color: '#15803d', margin: 0 }}>{inventoryStats.matchedSKUs}</p>
-                                                        </div>
-                                                        <span style={{ fontSize: '24px' }}>✅</span>
-                                                    </div>
-                                                </div>
-                                                
-                                                <div style={{ background: '#fed7aa', padding: '20px', borderRadius: '12px', border: '1px solid #fdba74' }}>
-                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                        <div>
-                                                            <p style={{ color: '#c2410c', fontWeight: 'bold', margin: '0 0 5px 0' }}>Unknown Stock</p>
-                                                            <p style={{ fontSize: '24px', fontWeight: 'bold', color: '#9a3412', margin: 0 }}>{inventoryStats.unknownSKUs}</p>
-                                                        </div>
-                                                        <span style={{ fontSize: '24px' }}>⚠️</span>
-                                                    </div>
-                                                </div>
+                                <div style={{ display:'flex', justifyContent:'center', alignItems:'center', gap:'12px', flexWrap:'wrap', marginTop:'22px' }}>
+                                    {stepNames.map((name,idx)=>{ const step=idx+1; return (
+                                        <React.Fragment key={step}>
+                                            {step>1 && <span style={{ color:'#c4c8d4' }}>→</span>}
+                                            <div style={{ display:'flex', alignItems:'center', gap:'7px' }}>
+                                                <div className={`progress-step ${currentStep>=step?(currentStep>step?'completed':'active'):'inactive'}`}>{currentStep>step?'✓':step}</div>
+                                                <span style={{ fontWeight:600, fontSize:'14px' }}>{name}</span>
                                             </div>
-                                            
-                                            <div style={{ marginTop: '30px', display: 'flex', justifyContent: 'space-between' }}>
-                                                <button
-                                                    className="btn-secondary"
-                                                    onClick={() => setCurrentStep(2)}
-                                                >
-                                                    ← Back
-                                                </button>
-                                                <button
-                                                    className="btn-primary"
-                                                    onClick={() => setCurrentStep(4)}
-                                                    style={{ background: 'linear-gradient(to right, #22c55e, #16a34a)' }}
-                                                >
-                                                    Start Ordering →
-                                                </button>
+                                        </React.Fragment>
+                                    ); })}
+                                </div>
+                                {notice && <div style={{ marginTop:'16px', padding:'10px 14px', borderRadius:'8px', background:'#eef2ff', color:'#3730a3', fontWeight:600, textAlign:'center' }}>{notice}</div>}
+                            </div>
+
+                            {/* Step 1 */}
+                            {currentStep===1 && (
+                                <div className="card" style={{ padding:'34px' }}>
+                                    <h2 style={{ fontSize:'22px', fontWeight:700, marginTop:0, marginBottom:'24px' }}>👤 Customer Information</h2>
+                                    <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))', gap:'18px' }}>
+                                        <div><label style={{ fontWeight:600 }}>📅 Date</label><input type="date" className="input-field" value={customerData.date} onChange={e=>setCustomerData({...customerData,date:e.target.value})} /></div>
+                                        <div><label style={{ fontWeight:600 }}>👤 Customer Name *</label><input className="input-field" value={customerData.customerName} onChange={e=>setCustomerData({...customerData,customerName:e.target.value})} placeholder="Enter customer name" /></div>
+                                        <div><label style={{ fontWeight:600 }}>📱 Mobile * (10 digits)</label><input className="input-field" value={customerData.customerMobile} onChange={e=>{const v=e.target.value.replace(/\D/g,''); if(v.length<=10) setCustomerData({...customerData,customerMobile:v});}} placeholder="10-digit mobile" /></div>
+                                        <div><label style={{ fontWeight:600 }}>🏙️ City *</label><input className="input-field" value={customerData.city} onChange={e=>setCustomerData({...customerData,city:e.target.value})} placeholder="Enter city" /></div>
+                                        <div><label style={{ fontWeight:600 }}>📍 Pincode * (6 digits)</label><input className="input-field" value={customerData.pincode} onChange={e=>{const v=e.target.value.replace(/\D/g,''); if(v.length<=6) setCustomerData({...customerData,pincode:v});}} placeholder="6-digit pincode" /></div>
+                                    </div>
+                                    <div style={{ marginTop:'26px', textAlign:'right' }}>
+                                        <button className="btn-primary" onClick={()=>validateCustomerInfo()?setCurrentStep(2):flash('⚠️ Fill all customer details correctly.')} disabled={!validateCustomerInfo()}>Next Step →</button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Step 2 */}
+                            {currentStep===2 && (
+                                <div className="card" style={{ padding:'34px' }}>
+                                    <h2 style={{ fontSize:'22px', fontWeight:700, marginTop:0, marginBottom:'24px' }}>📁 Upload Product Catalog</h2>
+                                    <div style={{ border:'2px dashed #d1d5db', borderRadius:'12px', padding:'50px', textAlign:'center', background:'#fafbff' }}>
+                                        <input type="file" accept=".csv" onChange={handleCSVUpload} ref={fileInputRef} style={{ display:'none' }} />
+                                        <div style={{ fontSize:'40px', marginBottom:'12px' }}>📄</div>
+                                        <h3 style={{ margin:'0 0 8px' }}>{uploadedCSV?`✅ Loaded: ${uploadedCSV}`:'Upload your product catalog CSV'}</h3>
+                                        <p style={{ color:'#6b7280', marginBottom:'22px' }}>{uploadedCSV?`${products.length} products across ${categories.length} categories`:'Use the merged UMORA_Master_Catalog_Winter_NonWinter.csv (Parent SKU, Child SKU, Color, Size, Category, MRP, WSP, Image URL, HSN, Stock)'}</p>
+                                        <button className="btn-primary" onClick={()=>fileInputRef.current?.click()}>📁 {uploadedCSV?'Change File':'Upload CSV'}</button>
+                                    </div>
+                                    <div style={{ marginTop:'26px', display:'flex', justifyContent:'space-between' }}>
+                                        <button className="btn-secondary" onClick={()=>setCurrentStep(1)}>← Back</button>
+                                        {uploadedCSV && <button className="btn-primary" onClick={()=>setCurrentStep(3)}>Next: Inventory →</button>}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Step 3 */}
+                            {currentStep===3 && (
+                                <div className="card" style={{ padding:'34px' }}>
+                                    <h2 style={{ fontSize:'22px', fontWeight:700, marginTop:0, marginBottom:'24px' }}>📦 Upload Inventory Data</h2>
+                                    <div style={{ border:'2px dashed #22c55e', borderRadius:'12px', padding:'50px', textAlign:'center', background:'#f6fdf9' }}>
+                                        <input type="file" accept=".csv" multiple onChange={handleInventoryUpload} ref={inventoryFileInputRef} style={{ display:'none' }} />
+                                        <div style={{ fontSize:'40px', marginBottom:'12px' }}>📦</div>
+                                        <h3 style={{ margin:'0 0 8px' }}>{uploadedInventoryFiles.length?`✅ ${uploadedInventoryFiles.length} file(s) loaded`:'Upload inventory CSV(s) — you can select multiple'}</h3>
+                                        <p style={{ color:'#6b7280', marginBottom:'8px' }}>{uploadedInventoryFiles.length?`${Object.keys(inventoryData).length} SKUs · ${uploadedInventoryFiles.join(', ')}`:'Select the summer + daily-essentials reports together — they get clubbed into one automatically. Needs: sku (or Child SKU Code) + old_quantity (or quantity/stock).'}</p>
+                                        <div style={{ display:'flex', gap:'12px', justifyContent:'center', flexWrap:'wrap', marginTop:'16px' }}>
+                                            <button className="btn-primary" style={{ background:'linear-gradient(to right,#22c55e,#16a34a)' }} onClick={()=>inventoryFileInputRef.current?.click()}>📦 {uploadedInventoryFiles.length?'Add More Files':'Upload Inventory CSV(s)'}</button>
+                                            <button className="btn-secondary" onClick={useCatalogStock}>Use Stock From Catalog Instead</button>
+                                        </div>
+                                    </div>
+                                    {(uploadedInventoryFiles.length>0) && (
+                                        <>
+                                            <div style={{ marginTop:'24px', display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(190px,1fr))', gap:'16px' }}>
+                                                {[['Total Product SKUs',inventoryStats.totalSKUs,'#eef2ff','#3730a3'],['Matched with Inventory',inventoryStats.matchedSKUs,'#dcfce7','#15803d'],['Unknown Stock',inventoryStats.unknownSKUs,'#fef3c7','#92400e']].map(([t,v,bg,c],i)=>(
+                                                    <div key={i} style={{ background:bg, padding:'18px', borderRadius:'12px' }}>
+                                                        <p style={{ color:c, fontWeight:700, margin:'0 0 4px' }}>{t}</p>
+                                                        <p style={{ fontSize:'26px', fontWeight:800, color:c, margin:0 }}>{v}</p>
+                                                    </div>
+                                                ))}
                                             </div>
                                         </>
                                     )}
+                                    <div style={{ marginTop:'26px', display:'flex', justifyContent:'space-between' }}>
+                                        <button className="btn-secondary" onClick={()=>setCurrentStep(2)}>← Back</button>
+                                        <button className="btn-primary" onClick={()=>setCurrentStep(4)} style={{ background:'linear-gradient(to right,#22c55e,#16a34a)' }}>Start Ordering →</button>
+                                    </div>
                                 </div>
                             )}
 
-                            {/* Step 4: Product Selection */}
-                            {currentStep === 4 && (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                                    {/* Category Navigation */}
-                                    <div className="card" style={{ padding: '30px' }}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                                            <h2 style={{ fontSize: '24px', fontWeight: 'bold', background: 'linear-gradient(to right, #3b82f6, #8b5cf6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-                                                {categories[currentCategory]} Products
-                                            </h2>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                                                <span style={{ background: '#f3f4f6', padding: '5px 15px', borderRadius: '20px', fontSize: '14px' }}>
-                                                    Category {currentCategory + 1} of {categories.length}
-                                                </span>
-                                                <div style={{ display: 'flex', gap: '5px' }}>
-                                                    <button
-                                                        className="btn-secondary"
-                                                        onClick={() => setCurrentCategory(Math.max(0, currentCategory - 1))}
-                                                        disabled={currentCategory === 0}
-                                                        style={{ padding: '8px', opacity: currentCategory === 0 ? 0.5 : 1 }}
-                                                    >
-                                                        ←
-                                                    </button>
-                                                    <button
-                                                        className="btn-secondary"
-                                                        onClick={() => setCurrentCategory(Math.min(categories.length - 1, currentCategory + 1))}
-                                                        disabled={currentCategory === categories.length - 1}
-                                                        style={{ padding: '8px', opacity: currentCategory === categories.length - 1 ? 0.5 : 1 }}
-                                                    >
-                                                        →
-                                                    </button>
-                                                </div>
-                                            </div>
+                            {/* Step 4 */}
+                            {currentStep===4 && (
+                                <div style={{ display:'flex', flexDirection:'column', gap:'20px' }}>
+                                    <div className="card" style={{ padding:'24px' }}>
+                                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'16px', flexWrap:'wrap', gap:'12px' }}>
+                                            <h2 style={{ fontSize:'22px', fontWeight:700, margin:0 }}>{categories[currentCategory]} Products</h2>
+                                            <span style={{ background:'#f3f4f6', padding:'5px 14px', borderRadius:'20px', fontSize:'13px' }}>Category {currentCategory+1} of {categories.length}</span>
                                         </div>
-                                        
-                                        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                                            {categories.map((category, index) => (
-                                                <button
-                                                    key={index}
-                                                    onClick={() => setCurrentCategory(index)}
-                                                    className={currentCategory === index ? 'btn-primary' : 'btn-secondary'}
-                                                    style={{ 
-                                                        padding: '8px 16px',
-                                                        background: currentCategory === index 
-                                                            ? 'linear-gradient(to right, #8b5cf6, #7c3aed)' 
-                                                            : '#f3f4f6',
-                                                        color: currentCategory === index ? 'white' : '#374151'
-                                                    }}
-                                                >
-                                                    {category}
-                                                </button>
+                                        <div style={{ display:'flex', gap:'8px', flexWrap:'wrap' }}>
+                                            {categories.map((cat,i)=>(
+                                                <button key={i} onClick={()=>setCurrentCategory(i)} style={{ padding:'8px 14px', borderRadius:'8px', border:'none', cursor:'pointer', fontWeight:600, background:currentCategory===i?'linear-gradient(to right,var(--brand1),var(--brand2))':'#f3f4f6', color:currentCategory===i?'#fff':'#374151' }}>{cat}</button>
                                             ))}
                                         </div>
                                     </div>
-
-                                    {/* Products Grid */}
-                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(500px, 1fr))', gap: '20px' }}>
-                                        {groupProductsByParentAndVariant(getCurrentCategoryProducts()).map((productGroup, index) => (
-                                            <div key={index} className="card" style={{ padding: '20px', border: '2px solid #e5e7eb', transition: 'all 0.3s' }}>
-                                                <div style={{ display: 'flex', gap: '15px' }}>
-                                                    <div style={{ flexShrink: 0 }}>
-                                                        {/* Image with click handler for lightbox */}
-                                                        <img
-                                                            src={productGroup.imageUrl || 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400&h=400&fit=crop'}
-                                                            alt={productGroup.parentSKU}
-                                                            style={{ width: '80px', height: '80px', objectFit: 'cover', borderRadius: '8px', border: '2px solid #e5e7eb', cursor: 'pointer' }}
-                                                            onError={(e) => {
-                                                                // Updated placeholder for main UI (Step 4)
-                                                                e.target.src = 'https://placehold.co/80x80/E0E7FF/4338CA?text=No+Image';
-                                                            }}
-                                                            onClick={() => openLightbox(productGroup.imageUrl || 'https://images.unsplash.com/photo-1503919545889-aef636e10ad4?w=400&h=400&fit=crop')}
-                                                        />
-                                                    </div>
-                                                    
-                                                    <div style={{ flex: 1 }}>
-                                                        <h3 style={{ fontSize: '18px', fontWeight: 'bold', background: 'linear-gradient(to right, #3b82f6, #8b5cf6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', margin: '0 0 5px 0' }}>
-                                                            {productGroup.parentSKU}
-                                                        </h3>
-                                                        <p style={{ fontSize: '14px', color: '#6b7280', margin: '0 0 5px 0' }}>Color: {productGroup.color}</p>
-                                                        <p style={{ fontSize: '14px', color: '#6b7280', margin: '0 0 5px 0' }}>Variant: {productGroup.variant}</p>
-                                                        <p style={{ fontSize: '14px', fontWeight: 'bold', color: '#dc2626', margin: '0 0 15px 0' }}>MRP: ₹{productGroup.mrp}</p>
-                                                        
-                                                        <div>
-                                                            <h4 style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '10px' }}>Available Sizes:</h4>
-                                                            {productGroup.sizes.map((sizeInfo, sizeIndex) => {
-                                                                const currentQty = orderData[sizeInfo.childSKU] || 0;
-                                                                const lineTotal = currentQty * parseFloat(sizeInfo.wsp || 0);
-                                                                const stockInfo = getStockInfo(sizeInfo.childSKU);
-                                                                
-                                                                return (
-                                                                    <div key={sizeIndex} className={stockInfo.className} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px', borderRadius: '8px', marginBottom: '8px' }}>
-                                                                        <div style={{ flex: 1 }}>
-                                                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
-                                                                                <span style={{ fontWeight: 'bold' }}>{sizeInfo.size}</span>
-                                                                                <div style={{ display: 'flex', gap: '8px' }}>
-                                                                                    <span style={{ background: '#dcfce7', color: '#166534', padding: '2px 8px', borderRadius: '4px', fontSize: '12px' }}>
-                                                                                        WSP: ₹{sizeInfo.wsp}
-                                                                                    </span>
-                                                                                    <span style={{ fontWeight: 'bold', fontSize: '12px' }}>
-                                                                                        {stockInfo.quantity === null ? 'Unknown' : `Stock: ${stockInfo.quantity}`}
-                                                                                    </span>
-                                                                                </div>
+                                    <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(480px,1fr))', gap:'18px' }}>
+                                        {groupProductsByParentAndVariant(getCurrentCategoryProducts()).map((g,idx)=>(
+                                            <div key={idx} className="card" style={{ padding:'18px' }}>
+                                                <div style={{ display:'flex', gap:'14px' }}>
+                                                    <img src={g.imageUrl||'https://placehold.co/80x80/E0E7FF/4338CA?text=No+Image'} alt={g.parentSKU} style={{ width:'80px', height:'80px', objectFit:'cover', borderRadius:'8px', border:'1.5px solid #e5e7eb', cursor:'pointer', flexShrink:0 }} onError={e=>e.target.src='https://placehold.co/80x80/E0E7FF/4338CA?text=No+Image'} onClick={()=>openLightbox(g.imageUrl)} />
+                                                    <div style={{ flex:1 }}>
+                                                        <h3 style={{ fontSize:'17px', fontWeight:700, margin:'0 0 4px', color:'var(--brand1)' }}>{g.parentSKU}</h3>
+                                                        <p style={{ fontSize:'13px', color:'#6b7280', margin:'0 0 2px' }}>Color: {g.color} · Variant: {g.variant}</p>
+                                                        <p style={{ fontSize:'13px', fontWeight:700, color:'#dc2626', margin:'0 0 12px' }}>MRP: ₹{g.mrp}</p>
+                                                        {g.sizes.map((s,si)=>{ const q=orderData[s.childSKU]||0; const lt=q*parseFloat(s.wsp||0); const info=getStockInfo(s.childSKU);
+                                                            return (
+                                                                <div key={si} className={info.className} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'9px', borderRadius:'8px', marginBottom:'7px' }}>
+                                                                    <div style={{ flex:1 }}>
+                                                                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                                                                            <span style={{ fontWeight:700 }}>{s.size}</span>
+                                                                            <div style={{ display:'flex', gap:'8px' }}>
+                                                                                <span style={{ background:'#dcfce7', color:'#166534', padding:'2px 8px', borderRadius:'4px', fontSize:'12px' }}>WSP: ₹{s.wsp}</span>
+                                                                                <span style={{ fontWeight:700, fontSize:'12px' }}>{info.quantity===null?'Unknown':`Stock: ${info.quantity}`}</span>
                                                                             </div>
-                                                                            {currentQty > 0 && (
-                                                                                <div style={{ fontSize: '12px', color: '#2563eb', fontWeight: 'bold' }}>
-                                                                                    Total: ₹{lineTotal.toFixed(2)}
-                                                                                </div>
-                                                                            )}
                                                                         </div>
-                                                                        <div style={{ marginLeft: '10px' }}>
-                                                                            <input
-                                                                                type="number"
-                                                                                min="0"
-                                                                                max={stockInfo.quantity || 9999}
-                                                                                step="1"
-                                                                                value={currentQty === 0 ? '' : currentQty}
-                                                                                onChange={(e) => {
-                                                                                    handleQuantityChange(sizeInfo.childSKU, e.target.value);
-                                                                                }}
-                                                                                style={{ width: '70px', padding: '5px', border: '2px solid #d1d5db', borderRadius: '6px', textAlign: 'center' }}
-                                                                                placeholder="0"
-                                                                            />
-                                                                            {stockInfo.quantity !== null && (
-                                                                                <p style={{ fontSize: '10px', color: '#6b7280', textAlign: 'center', margin: '2px 0 0 0' }}>
-                                                                                    Max: {stockInfo.quantity}
-                                                                                </p>
-                                                                            )}
-                                                                        </div>
+                                                                        {q>0 && <div style={{ fontSize:'12px', color:'#2563eb', fontWeight:700, marginTop:'3px' }}>Total: ₹{lt.toFixed(2)}</div>}
                                                                     </div>
-                                                                );
-                                                            })}
-                                                        </div>
+                                                                    <input type="number" min="0" max={info.quantity||9999} value={q===0?'':q} onChange={e=>handleQuantityChange(s.childSKU,e.target.value)} style={{ width:'68px', padding:'5px', border:'1.5px solid #d1d5db', borderRadius:'6px', textAlign:'center', marginLeft:'10px' }} placeholder="0" />
+                                                                </div>
+                                                            );
+                                                        })}
                                                     </div>
                                                 </div>
                                             </div>
                                         ))}
                                     </div>
-
-                                    {/* Order Summary */}
-                                    <div className="card" style={{ padding: '30px' }}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                            <div style={{ display: 'flex', gap: '20px' }}>
-                                                <div style={{ background: 'linear-gradient(to right, #3b82f6, #1d4ed8)', padding: '15px 25px', borderRadius: '12px', color: 'white' }}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                        <span style={{ fontSize: '20px' }}>📦</span>
-                                                        <span style={{ fontSize: '18px', fontWeight: 'bold' }}>Total Qty: {totalItems}</span>
-                                                    </div>
-                                                </div>
-                                                
-                                                <div style={{ background: 'linear-gradient(to right, #22c55e, #15803d)', padding: '15px 25px', borderRadius: '12px', color: 'white' }}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                        <span style={{ fontSize: '20px', fontWeight: 'bold' }}>₹</span>
-                                                        <span style={{ fontSize: '18px', fontWeight: 'bold' }}>{totalValue}</span>
-                                                    </div>
-                                                </div>
+                                    <div className="card" style={{ padding:'22px' }}>
+                                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:'14px' }}>
+                                            <div style={{ display:'flex', gap:'14px' }}>
+                                                <div style={{ background:'linear-gradient(to right,#4f46e5,#4338ca)', padding:'12px 22px', borderRadius:'12px', color:'#fff', fontWeight:700 }}>📦 Total Qty: {totalItems}</div>
+                                                <div style={{ background:'linear-gradient(to right,#22c55e,#15803d)', padding:'12px 22px', borderRadius:'12px', color:'#fff', fontWeight:700 }}>₹ {totalValue}</div>
                                             </div>
-                                            
-                                            <div style={{ display: 'flex', gap: '15px' }}>
-                                                <button
-                                                    className="btn-secondary"
-                                                    onClick={() => setCurrentStep(3)}
-                                                >
-                                                    ← Back
-                                                </button>
-                                                <button
-                                                    className="btn-primary"
-                                                    onClick={proceedToInvoice}
-                                                    disabled={totalItems === 0}
-                                                    style={{ 
-                                                        background: totalItems > 0 
-                                                            ? 'linear-gradient(to right, #f97316, #ea580c)' 
-                                                            : '#9ca3af',
-                                                        opacity: totalItems === 0 ? 0.5 : 1
-                                                    }}
-                                                >
-                                                    📄 Generate Invoice ({totalItems} items)
-                                                </button>
+                                            <div style={{ display:'flex', gap:'12px' }}>
+                                                <button className="btn-secondary" onClick={()=>setCurrentStep(editMode?5:3)}>← Back</button>
+                                                <button className="btn-primary" onClick={proceedToInvoice} disabled={totalItems===0} style={{ background:totalItems>0?'linear-gradient(to right,#f97316,#ea580c)':'#9ca3af' }}>📄 {editMode?'Update':'Generate'} {docType} ({totalItems})</button>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
                             )}
 
-                            {/* Step 5: Invoice Generation */}
-                            {currentStep === 5 && (
-                                <div className="card" style={{ padding: '40px' }}>
-                                    <h2 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '30px' }}>
-                                        🏢 Generate Proforma Invoice
-                                    </h2>
-                                    
-                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '30px' }}>
-                                        {/* Customer Details */}
+                            {/* Step 5 */}
+                            {currentStep===5 && (
+                                <div className="card" style={{ padding:'34px' }}>
+                                    <h2 style={{ fontSize:'22px', fontWeight:700, marginTop:0, marginBottom:'24px' }}>🏢 {editMode?'Edit':'Generate'} {DOC_LABELS[docType]}</h2>
+                                    <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(380px,1fr))', gap:'28px' }}>
                                         <div>
-                                            <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '20px', borderBottom: '2px solid #e5e7eb', paddingBottom: '10px' }}>Customer Details</h3>
-                                            
-                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                                                <div>
-                                                    <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>Customer Name *</label>
-                                                    <input
-                                                        type="text"
-                                                        className="input-field"
-                                                        value={invoiceData.customerName}
-                                                        onChange={(e) => setInvoiceData({...invoiceData, customerName: e.target.value})}
-                                                    />
+                                            <h3 style={{ borderBottom:'2px solid #eef0f6', paddingBottom:'8px' }}>Customer Details</h3>
+                                            <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
+                                                <div><label style={{ fontWeight:600 }}>Customer Name *</label><input className="input-field" value={invoiceData.customerName} onChange={e=>setInvoiceData({...invoiceData,customerName:e.target.value})} /></div>
+                                                <div><label style={{ fontWeight:600 }}>Address Line 1 *</label><input className="input-field" value={invoiceData.addressLine1} onChange={e=>setInvoiceData({...invoiceData,addressLine1:e.target.value})} placeholder="Street, building" /></div>
+                                                <div><label style={{ fontWeight:600 }}>Address Line 2</label><input className="input-field" value={invoiceData.addressLine2} onChange={e=>setInvoiceData({...invoiceData,addressLine2:e.target.value})} placeholder="Area, landmark" /></div>
+                                                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px' }}>
+                                                    <div><label style={{ fontWeight:600 }}>City *</label><input className="input-field" value={invoiceData.city} onChange={e=>setInvoiceData({...invoiceData,city:e.target.value})} /></div>
+                                                    <div><label style={{ fontWeight:600 }}>Pincode *</label><input className="input-field" value={invoiceData.pincode} onChange={e=>setInvoiceData({...invoiceData,pincode:e.target.value})} /></div>
                                                 </div>
-                                                
-                                                <div>
-                                                    <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>Address Line 1 *</label>
-                                                    <input
-                                                        type="text"
-                                                        className="input-field"
-                                                        value={invoiceData.addressLine1}
-                                                        onChange={(e) => setInvoiceData({...invoiceData, addressLine1: e.target.value})}
-                                                        placeholder="Street address, building name"
-                                                    />
-                                                </div>
-                                                
-                                                <div>
-                                                    <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>Address Line 2</label>
-                                                    <input
-                                                        type="text"
-                                                        className="input-field"
-                                                        value={invoiceData.addressLine2}
-                                                        onChange={(e) => setInvoiceData({...invoiceData, addressLine2: e.target.value})}
-                                                        placeholder="Area, landmark"
-                                                    />
-                                                </div>
-                                                
-                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                                                    <div>
-                                                        <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>City *</label>
-                                                        <input
-                                                            type="text"
-                                                            className="input-field"
-                                                            value={invoiceData.city}
-                                                            onChange={(e) => setInvoiceData({...invoiceData, city: e.target.value})}
-                                                        />
-                                                    </div>
-                                                    <div>
-                                                        <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>Pincode *</label>
-                                                        <input
-                                                            type="text"
-                                                            className="input-field"
-                                                            value={invoiceData.pincode}
-                                                            onChange={(e) => setInvoiceData({...invoiceData, pincode: e.target.value})}
-                                                        />
-                                                    </div>
-                                                </div>
-                                                
-                                                <div>
-                                                    <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>State *</label>
-                                                    <select
-                                                        className="input-field"
-                                                        value={invoiceData.state}
-                                                        onChange={(e) => setInvoiceData({...invoiceData, state: e.target.value})}
-                                                    >
-                                                        <option value="">Select State</option>
-                                                        {indianStates.map((state) => (
-                                                            <option key={state} value={state}>{state}</option>
-                                                        ))}
-                                                    </select>
-                                                </div>
-                                                
-                                                <div>
-                                                    <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>GST Number</label>
-                                                    <input
-                                                        type="text"
-                                                        className="input-field"
-                                                        value={invoiceData.gstNo}
-                                                        onChange={(e) => setInvoiceData({...invoiceData, gstNo: e.target.value.toUpperCase()})}
-                                                        placeholder="22AAAAA0000A1Z5 (if applicable)"
-                                                    />
-                                                </div>
-                                                
-                                                <div>
-                                                    <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>Contact Person</label>
-                                                    <input
-                                                        type="text"
-                                                        className="input-field"
-                                                        value={invoiceData.contactPerson}
-                                                        onChange={(e) => setInvoiceData({...invoiceData, contactPerson: e.target.value})}
-                                                    />
-                                                </div>
-                                                
-                                                <div>
-                                                    <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>Contact Details</label>
-                                                    <textarea
-                                                        className="input-field"
-                                                        value={invoiceData.contactDetails}
-                                                        onChange={(e) => setInvoiceData({...invoiceData, contactDetails: e.target.value})}
-                                                        rows="3"
-                                                        style={{ resize: 'vertical' }}
-                                                    />
-                                                </div>
+                                                <div><label style={{ fontWeight:600 }}>State *</label><select className="input-field" value={invoiceData.state} onChange={e=>setInvoiceData({...invoiceData,state:e.target.value})}><option value="">Select State</option>{indianStates.map(s=><option key={s} value={s}>{s}</option>)}</select></div>
+                                                <div><label style={{ fontWeight:600 }}>GST Number</label><input className="input-field" value={invoiceData.gstNo} onChange={e=>setInvoiceData({...invoiceData,gstNo:e.target.value.toUpperCase()})} placeholder="22AAAAA0000A1Z5" /></div>
+                                                <div><label style={{ fontWeight:600 }}>Contact Person</label><input className="input-field" value={invoiceData.contactPerson} onChange={e=>setInvoiceData({...invoiceData,contactPerson:e.target.value})} /></div>
+                                                <div><label style={{ fontWeight:600 }}>Contact Details</label><textarea className="input-field" value={invoiceData.contactDetails} onChange={e=>setInvoiceData({...invoiceData,contactDetails:e.target.value})} rows="2" /></div>
                                             </div>
                                         </div>
-                                        
-                                        {/* Invoice Details */}
                                         <div>
-                                            <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '20px', borderBottom: '2px solid #e5e7eb', paddingBottom: '10px' }}>Invoice Details</h3>
-                                            
-                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                                                <div>
-                                                    <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>PI Number *</label>
-                                                    <input
-                                                        type="text"
-                                                        className="input-field"
-                                                        value={invoiceData.piNumber}
-                                                        onChange={(e) => setInvoiceData({...invoiceData, piNumber: e.target.value})}
-                                                    />
+                                            <h3 style={{ borderBottom:'2px solid #eef0f6', paddingBottom:'8px' }}>{DOC_LABELS[docType]} Details</h3>
+                                            <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
+                                                <div><label style={{ fontWeight:600 }}>{docType==='TI'?'Tax Invoice':'PI'} Number *</label><input className="input-field" value={invoiceData.piNumber} onChange={e=>setInvoiceData({...invoiceData,piNumber:e.target.value})} /></div>
+                                                <div><label style={{ fontWeight:600 }}>Total Cartons/Boxes</label><input className="input-field" value={invoiceData.totalCartons} onChange={e=>setInvoiceData({...invoiceData,totalCartons:e.target.value})} /></div>
+                                                <div><label style={{ fontWeight:600 }}>E-way Bill Number</label><input className="input-field" value={invoiceData.ewayBillNumber} onChange={e=>setInvoiceData({...invoiceData,ewayBillNumber:e.target.value})} /></div>
+                                                <div><label style={{ fontWeight:600 }}>Payment Terms</label>
+                                                    <select className="input-field" value={invoiceData.paymentTerms} onChange={e=>setInvoiceData({...invoiceData,paymentTerms:e.target.value})}><option value="100% ADVANCE">100% ADVANCE</option><option value="OTHER">Other</option></select>
+                                                    {invoiceData.paymentTerms==='OTHER' && <input className="input-field" style={{ marginTop:'8px' }} value={invoiceData.customPaymentTerms} onChange={e=>setInvoiceData({...invoiceData,customPaymentTerms:e.target.value})} placeholder="Custom payment terms" />}
                                                 </div>
-                                                
-                                                <div>
-                                                    <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>Total Cartons/Boxes</label>
-                                                    <input
-                                                        type="text"
-                                                        className="input-field"
-                                                        value={invoiceData.totalCartons}
-                                                        onChange={(e) => setInvoiceData({...invoiceData, totalCartons: e.target.value})}
-                                                    />
-                                                </div>
-                                                
-                                                <div>
-                                                    <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>E-way Bill Number</label>
-                                                    <input
-                                                        type="text"
-                                                        className="input-field"
-                                                        value={invoiceData.ewayBillNumber}
-                                                        onChange={(e) => setInvoiceData({...invoiceData, ewayBillNumber: e.target.value})}
-                                                    />
-                                                </div>
-                                                
-                                                <div>
-                                                    <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>Payment Terms</label>
-                                                    <select
-                                                        className="input-field"
-                                                        value={invoiceData.paymentTerms}
-                                                        onChange={(e) => setInvoiceData({...invoiceData, paymentTerms: e.target.value})}
-                                                    >
-                                                        <option value="100% ADVANCE">100% ADVANCE</option>
-                                                        <option value="OTHER">Other</option>
-                                                    </select>
-                                                    {invoiceData.paymentTerms === 'OTHER' && (
-                                                        <input
-                                                            type="text"
-                                                            className="input-field"
-                                                            style={{ marginTop: '10px' }}
-                                                            value={invoiceData.customPaymentTerms}
-                                                            onChange={(e) => setInvoiceData({...invoiceData, customPaymentTerms: e.target.value})}
-                                                            placeholder="Enter custom payment terms"
-                                                        />
-                                                    )}
-                                                </div>
-                                                
-                                                <div>
-                                                    <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>Logistics Charges (₹)</label>
-                                                    <input
-                                                        type="number"
-                                                        min="0"
-                                                        step="0.01"
-                                                        className="input-field"
-                                                        value={invoiceData.logisticsCharges}
-                                                        onChange={(e) => setInvoiceData({...invoiceData, logisticsCharges: parseFloat(e.target.value) || 0})}
-                                                    />
-                                                </div>
-                                                
-                                                <div>
-                                                    <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>Cash Discount (%)</label>
-                                                    <input
-                                                        type="number"
-                                                        min="0"
-                                                        max="100"
-                                                        step="0.1"
-                                                        className="input-field"
-                                                        value={invoiceData.cashDiscount}
-                                                        onChange={(e) => setInvoiceData({...invoiceData, cashDiscount: parseFloat(e.target.value) || 0})}
-                                                    />
-                                                </div>
-                                                
-                                                {/* Invoice Preview */}
-                                                <div style={{ background: '#f9fafb', padding: '20px', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
-                                                    <h4 style={{ fontWeight: 'bold', marginBottom: '15px' }}>Invoice Preview</h4>
-                                                    {(() => {
-                                                        const totals = calculateInvoiceTotals();
-                                                        return (
-                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '14px' }}>
-                                                                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                                                    <span>Total Qty:</span>
-                                                                    <span style={{ fontWeight: 'bold' }}>{totals.totalQty}</span>
-                                                                </div>
-                                                                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                                                    <span>Total Value:</span>
-                                                                    <span style={{ fontWeight: 'bold' }}>₹{totals.totalValue.toFixed(2)}</span>
-                                                                </div>
-                                                                {invoiceData.cashDiscount > 0 && (
-                                                                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#dc2626' }}>
-                                                                        <span>Cash Discount ({invoiceData.cashDiscount}%):</span>
-                                                                        <span style={{ fontWeight: 'bold' }}>-₹{totals.discountAmount.toFixed(2)}</span>
-                                                                    </div>
-                                                                )}
-                                                                {invoiceData.logisticsCharges > 0 && (
-                                                                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#2563eb' }}>
-                                                                        <span>Logistics Charges:</span>
-                                                                        <span style={{ fontWeight: 'bold' }}>+₹{invoiceData.logisticsCharges.toFixed(2)}</span>
-                                                                    </div>
-                                                                )}
-                                                                <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #d1d5db', paddingTop: '8px' }}>
-                                                                    <span>Net Amount:</span>
-                                                                    <span style={{ fontWeight: 'bold' }}>₹{totals.netAmount.toFixed(2)}</span>
-                                                                </div>
-                                                                {totals.isMaharashtra ? (
-                                                                    <>
-                                                                        <div style={{ display: 'flex', justifyContent: 'space-between', color: '#16a34a' }}>
-                                                                            <span>CGST @ 2.5%:</span>
-                                                                            <span style={{ fontWeight: 'bold' }}>₹{totals.cgst.toFixed(2)}</span>
-                                                                        </div>
-                                                                        <div style={{ display: 'flex', justifyContent: 'space-between', color: '#16a34a' }}>
-                                                                            <span>SGST @ 2.5%:</span>
-                                                                            <span style={{ fontWeight: 'bold' }}>₹{totals.sgst.toFixed(2)}</span>
-                                                                        </div>
-                                                                    </>
-                                                                ) : (
-                                                                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#16a34a' }}>
-                                                                        <span>IGST @ 5%:</span>
-                                                                        <span style={{ fontWeight: 'bold' }}>₹{totals.igst.toFixed(2)}</span>
-                                                                    </div>
-                                                                )}
-                                                                <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '2px solid #374151', paddingTop: '8px', fontSize: '16px', fontWeight: 'bold' }}>
-                                                                    <span>Final Amount:</span>
-                                                                    <span style={{ color: '#16a34a' }}>₹{totals.finalAmount.toFixed(2)}</span>
-                                                                </div>
-                                                            </div>
-                                                        );
-                                                    })()}
+                                                <div><label style={{ fontWeight:600 }}>Logistics Charges (₹)</label><input type="number" min="0" step="0.01" className="input-field" value={invoiceData.logisticsCharges} onChange={e=>setInvoiceData({...invoiceData,logisticsCharges:parseFloat(e.target.value)||0})} /></div>
+                                                <div><label style={{ fontWeight:600 }}>Cash Discount (%)</label><input type="number" min="0" max="100" step="0.1" className="input-field" value={invoiceData.cashDiscount} onChange={e=>setInvoiceData({...invoiceData,cashDiscount:parseFloat(e.target.value)||0})} /></div>
+                                                <div style={{ background:'#f9fafb', padding:'18px', borderRadius:'10px', border:'1px solid #eef0f6' }}>
+                                                    <h4 style={{ fontWeight:700, margin:'0 0 12px' }}>Invoice Preview</h4>
+                                                    {(()=>{ const t=calculateInvoiceTotals(); return (
+                                                        <div style={{ display:'flex', flexDirection:'column', gap:'6px', fontSize:'14px' }}>
+                                                            <div style={{ display:'flex', justifyContent:'space-between' }}><span>Total Qty:</span><strong>{t.totalQty}</strong></div>
+                                                            <div style={{ display:'flex', justifyContent:'space-between' }}><span>Total Value:</span><strong>₹{t.totalValue.toFixed(2)}</strong></div>
+                                                            {invoiceData.cashDiscount>0 && <div style={{ display:'flex', justifyContent:'space-between', color:'#dc2626' }}><span>Discount ({invoiceData.cashDiscount}%):</span><strong>-₹{t.discountAmount.toFixed(2)}</strong></div>}
+                                                            {invoiceData.logisticsCharges>0 && <div style={{ display:'flex', justifyContent:'space-between', color:'#2563eb' }}><span>Logistics:</span><strong>+₹{parseFloat(invoiceData.logisticsCharges).toFixed(2)}</strong></div>}
+                                                            <div style={{ display:'flex', justifyContent:'space-between', borderTop:'1px solid #d1d5db', paddingTop:'6px' }}><span>Net Amount:</span><strong>₹{t.netAmount.toFixed(2)}</strong></div>
+                                                            {t.isMaharashtra ? (<><div style={{ display:'flex', justifyContent:'space-between', color:'#16a34a' }}><span>CGST @ 2.5%:</span><strong>₹{t.cgst.toFixed(2)}</strong></div><div style={{ display:'flex', justifyContent:'space-between', color:'#16a34a' }}><span>SGST @ 2.5%:</span><strong>₹{t.sgst.toFixed(2)}</strong></div></>) : (<div style={{ display:'flex', justifyContent:'space-between', color:'#16a34a' }}><span>IGST @ 5%:</span><strong>₹{t.igst.toFixed(2)}</strong></div>)}
+                                                            <div style={{ display:'flex', justifyContent:'space-between', borderTop:'2px solid #374151', paddingTop:'6px', fontSize:'16px', fontWeight:800 }}><span>Final:</span><span style={{ color:'#16a34a' }}>₹{t.finalAmount.toFixed(2)}</span></div>
+                                                        </div>
+                                                    ); })()}
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
-                                    
-                                    <div style={{ marginTop: '40px', display: 'flex', justifyContent: 'space-between' }}>
-                                        <button
-                                            className="btn-secondary"
-                                            onClick={() => setCurrentStep(4)}
-                                        >
-                                            ← Back to Orders
-                                        </button>
-                                        
-                                        <button
-                                            className="btn-primary"
-                                            onClick={() => setShowDownloadOptions(true)}
-                                            disabled={!invoiceData.customerName || !invoiceData.addressLine1 || !invoiceData.city || !invoiceData.pincode || !invoiceData.state}
-                                            style={{ 
-                                                background: (invoiceData.customerName && invoiceData.addressLine1 && invoiceData.city && invoiceData.pincode && invoiceData.state)
-                                                    ? 'linear-gradient(to right, #16a34a, #15803d)' 
-                                                    : '#9ca3af',
-                                                opacity: (!invoiceData.customerName || !invoiceData.addressLine1 || !invoiceData.city || !invoiceData.pincode || !invoiceData.state) ? 0.5 : 1
-                                            }}
-                                        >
-                                            📄 Download Invoice
-                                        </button>
+                                    <div style={{ marginTop:'32px', display:'flex', justifyContent:'space-between' }}>
+                                        <button className="btn-secondary" onClick={()=>setCurrentStep(4)}>← Back to Orders</button>
+                                        <button className="btn-primary" onClick={()=>setShowDownloadOptions(true)} disabled={!invoiceData.customerName||!invoiceData.addressLine1||!invoiceData.city||!invoiceData.pincode||!invoiceData.state} style={{ background:(invoiceData.customerName&&invoiceData.addressLine1&&invoiceData.city&&invoiceData.pincode&&invoiceData.state)?'linear-gradient(to right,#16a34a,#15803d)':'#9ca3af' }}>📄 Download {docType}</button>
                                     </div>
-                                    
-                                    {/* Download Options Modal */}
+
                                     {showDownloadOptions && (
-                                        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-                                            <div style={{ background: 'white', borderRadius: '12px', padding: '40px', maxWidth: '500px', width: '90%', boxShadow: '0 25px 50px rgba(0,0,0,0.25)' }}>
-                                                <h3 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '20px', textAlign: 'center' }}>
-                                                    📄 Choose Download Format
-                                                </h3>
-                                                <p style={{ color: '#6b7280', textAlign: 'center', marginBottom: '30px' }}>
-                                                    Select your preferred format for the invoice:
-                                                </p>
-                                                
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                                                    <button
-                                                        className="btn-primary"
-                                                        onClick={downloadAsPDF}
-                                                        style={{ background: 'linear-gradient(to right, #dc2626, #b91c1c)', padding: '15px 25px', fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}
-                                                    >
-                                                        📄 Download as PDF (Recommended)
-                                                    </button>
-                                                    
-                                                    <button
-                                                        className="btn-primary"
-                                                        onClick={downloadAsExcel}
-                                                        style={{ background: 'linear-gradient(to right, #16a34a, #15803d)', padding: '15px 25px', fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}
-                                                    >
-                                                        📊 Download as Excel
-                                                    </button>
-                                                    
-                                                    <button
-                                                        className="btn-primary"
-                                                        onClick={downloadAsHTML}
-                                                        style={{ background: 'linear-gradient(to right, #2563eb, #1d4ed8)', padding: '15px 25px', fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}
-                                                    >
-                                                        🌐 Download as HTML
-                                                    </button>
+                                        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000 }}>
+                                            <div style={{ background:'#fff', borderRadius:'14px', padding:'34px', maxWidth:'460px', width:'90%' }}>
+                                                <h3 style={{ textAlign:'center', marginTop:0 }}>📄 Download {DOC_LABELS[docType]}</h3>
+                                                <div style={{ display:'flex', flexDirection:'column', gap:'12px', marginTop:'20px' }}>
+                                                    <button className="btn-primary" onClick={downloadAsPDF} style={{ background:'linear-gradient(to right,#dc2626,#b91c1c)' }}>📄 Download as PDF (Print)</button>
+                                                    <button className="btn-primary" onClick={downloadAsHTML} style={{ background:'linear-gradient(to right,#2563eb,#1d4ed8)' }}>🌐 Download as HTML (re-editable)</button>
+                                                    <button className="btn-primary" onClick={downloadAsExcel} style={{ background:'linear-gradient(to right,#16a34a,#15803d)' }}>📊 Download as Excel</button>
                                                 </div>
-                                                
-                                                <div style={{ marginTop: '30px', textAlign: 'center' }}>
-                                                    <button
-                                                        className="btn-secondary"
-                                                        onClick={() => setShowDownloadOptions(false)}
-                                                        style={{ padding: '10px 20px' }}
-                                                    >
-                                                        Cancel
-                                                    </button>
+                                                <div style={{ marginTop:'16px', padding:'12px', background:'#eff6ff', borderRadius:'8px', fontSize:'13px', color:'#1e40af' }}>
+                                                    💡 The <strong>HTML</strong> file stores all invoice data — re-upload it on the start screen to edit later.
                                                 </div>
-                                                
-                                                <div style={{ marginTop: '20px', padding: '15px', background: '#f0f9ff', borderRadius: '8px', fontSize: '14px' }}>
-                                                    <p style={{ margin: '0 0 10px 0', fontWeight: 'bold', color: '#1e40af' }}>💡 Format Guide:</p>
-                                                    <p style={{ margin: '0 0 5px 0', color: '#1e40af' }}><strong>PDF:</strong> Best for printing and official documents</p>
-                                                    <p style={{ margin: '0 0 5px 0', color: '#1e40af' }}><strong>Excel:</strong> Best for data analysis and calculations</p>
-                                                    <p style={{ margin: 0, color: '#1e40af' }}><strong>HTML:</strong> Best for web viewing and customization</p>
-                                                </div>
+                                                <div style={{ marginTop:'16px', textAlign:'center' }}><button className="btn-secondary" onClick={()=>setShowDownloadOptions(false)}>Cancel</button></div>
                                             </div>
                                         </div>
                                     )}
@@ -1797,26 +726,17 @@
                         </div>
                     </div>
 
-                    {/* Image Lightbox Component (Outside main App flow) */}
-                    <div className={`lightbox-overlay ${lightbox.visible ? 'visible' : ''}`} onClick={closeLightbox}>
-                        <div className="lightbox-content" onClick={(e) => e.stopPropagation()}>
+                    <div className={`lightbox-overlay ${lightbox.visible?'visible':''}`} onClick={closeLightbox}>
+                        <div className="lightbox-content" onClick={e=>e.stopPropagation()}>
                             <button className="lightbox-close" onClick={closeLightbox}>×</button>
-                            <img 
-                                src={lightbox.imageUrl} 
-                                alt="Expanded Product" 
-                                className="lightbox-image" 
-                                onError={(e) => e.target.src = 'https://placehold.co/800x600/CCCCCC/333333?text=Image+Load+Error'}
-                            />
+                            <img src={lightbox.imageUrl} alt="Product" className="lightbox-image" onError={e=>e.target.src='https://placehold.co/800x600/CCCCCC/333333?text=Image+Load+Error'} />
                         </div>
                     </div>
                 </>
             );
         }
 
-        // Fix the deprecated ReactDOM.render API call
-        const container = document.getElementById('root');
-        const root = ReactDOM.createRoot(container);
-        root.render(<App />);
+        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
     </script>
 </body>
 </html>
