@@ -9,6 +9,12 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
     <script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+    <script>
+        if (window.pdfjsLib) {
+            window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+        }
+    </script>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         :root { --brand1:#4f46e5; --brand2:#7c3aed; }
@@ -259,34 +265,203 @@
                 .filter(i=>i.product)
                 .sort((a,b)=>String(a.product['Parent SKU Code']).localeCompare(String(b.product['Parent SKU Code'])));
 
-            // ---- Load an existing invoice (edit) ----
+            // ---- Import existing invoice (HTML / CSV / Excel / PDF) ----
+            const num = (v) => { const n=parseFloat(String(v==null?'':v).replace(/[^0-9.]/g,'')); return isNaN(n)?0:n; };
+            const KNOWN_SIZES = ['0-3Months-1','0-3Months','6-12M','3-6M','0-3M','0-6M','6-9M','9-12M','12-18M','18-24M','1-2Y','2-3Y','3-4Y','4-5Y','5-6Y','6-7Y','7-8Y'];
+
+            const blankImport = () => ({
+                docType:'PI',
+                customerData:{ date:new Date().toISOString().split('T')[0], customerName:'', customerMobile:'', city:'', pincode:'' },
+                invoiceData:{ customerName:'', addressLine1:'', addressLine2:'', city:'', pincode:'', state:'', gstNo:'', contactPerson:'', contactDetails:'', totalCartons:'', ewayBillNumber:'', paymentTerms:'100% ADVANCE', customPaymentTerms:'', logisticsCharges:0, cashDiscount:0, piNumber:'' },
+                lineItems:[]
+            });
+
+            const setPaymentTerms = (inv, val) => {
+                if (!val) return;
+                if (/100%\s*advance/i.test(val)) inv.paymentTerms='100% ADVANCE';
+                else { inv.paymentTerms='OTHER'; inv.customPaymentTerms=val; }
+            };
+
+            const applyLabel = (imp, label, value) => {
+                const k = String(label).toLowerCase().replace(/[:*]/g,'').trim();
+                const v = value==null?'':String(value).trim();
+                const inv = imp.invoiceData;
+                if (k.includes('tax invoice')) imp.docType='TI';
+                if ((k.includes('document number')||k.includes('invoice number')||k==='pi number'||k.includes('pi number')||k==='invoice no'||k.includes('invoice no')) && !k.includes('e-way')) inv.piNumber=v;
+                else if (k==='date' || k.includes('invoice date')) imp.customerData.date=v;
+                else if (k.includes('customer name')) { inv.customerName=v; imp.customerData.customerName=v; }
+                else if (k.includes('address line 1')) inv.addressLine1=v;
+                else if (k.includes('address line 2')) inv.addressLine2=v;
+                else if (k==='city' || k.includes('city')) { inv.city=v; imp.customerData.city=v; }
+                else if (k.includes('pincode') || k.includes('pin code')) { inv.pincode=v; imp.customerData.pincode=v; }
+                else if (k==='state' || k.includes('state')) inv.state=v;
+                else if (k.includes('gst number') || k.includes('gst no')) inv.gstNo=v;
+                else if (k.includes('contact person')) inv.contactPerson=v;
+                else if (k.includes('contact details')) { inv.contactDetails=v; imp.customerData.customerMobile=v.replace(/\D/g,'').slice(-10); }
+                else if (k.includes('total cartons')) inv.totalCartons=v;
+                else if (k.includes('e-way') || k.includes('eway')) inv.ewayBillNumber=v;
+                else if (k.includes('payment terms')) setPaymentTerms(inv, v);
+                else if (k.includes('logistics')) inv.logisticsCharges = /free/i.test(v)?0:num(v);
+                else if (k.includes('cash discount')) inv.cashDiscount = num(v);
+            };
+
+            // Parse array-of-arrays (from CSV or Excel) — labelled rows + product table
+            const parseAOA = (rows) => {
+                const imp = blankImport();
+                const joined = rows.map(r => (r||[]).map(c=>c==null?'':String(c)));
+                // detect doc type from top rows
+                joined.slice(0,6).forEach(r => { if (r.some(c=>/tax invoice/i.test(c))) imp.docType='TI'; });
+                // find product header row
+                let hIdx=-1, col={};
+                for (let i=0;i<joined.length;i++){
+                    const low = joined[i].map(c=>c.toLowerCase());
+                    if (low.some(c=>c.includes('product code')) && low.some(c=>c.includes('qty')||c.includes('quantity'))){
+                        hIdx=i;
+                        low.forEach((c,ci)=>{
+                            if (c.includes('parent')) col.parent=ci;
+                            else if (c.includes('product code')) col.child=ci;
+                            else if (c==='size'||c.includes('size')) col.size=ci;
+                            else if (c.includes('category')) col.category=ci;
+                            else if (c.includes('color')||c.includes('colour')) col.color=ci;
+                            else if (c.includes('hsn')) col.hsn=ci;
+                            else if (c.includes('qty')||c.includes('quantity')) col.qty=ci;
+                            else if (c==='mrp'||c.includes('mrp')) col.mrp=ci;
+                            else if (c.includes('rate')) col.rate=ci;
+                        });
+                        break;
+                    }
+                }
+                // labelled fields (before product table)
+                joined.forEach((r,i) => { if (hIdx===-1 || i<hIdx) { if (r[0] && r[1]!==undefined && String(r[1]).trim()!=='' ) applyLabel(imp, r[0], r[1]); } });
+                // also scan rows after table for totals labels (discount/logistics)
+                if (hIdx>=0){
+                    for (let i=hIdx+1;i<joined.length;i++){
+                        const r=joined[i]; const c0=(r[0]||'').toLowerCase();
+                        const childVal = r[col.child];
+                        if (childVal && /LA\S+/i.test(childVal)){
+                            imp.lineItems.push({ quantity: parseInt(num(r[col.qty]))||1, product:{
+                                'Parent SKU Code': r[col.parent]||'', 'Child SKU Code': String(childVal).trim(),
+                                'Color': r[col.color]||'', 'Size': r[col.size]||'', 'Category': r[col.category]||'',
+                                'MRP': num(r[col.mrp]), 'WSP': num(r[col.rate]), 'HSN': r[col.hsn]||'', 'Image URL': ''
+                            }});
+                        } else if (c0.includes('cash discount')||c0.includes('logistics')||c0.includes('payment terms')) applyLabel(imp, r[0], r[1]);
+                    }
+                }
+                return imp;
+            };
+
+            // Parse PDF plain text (best-effort; SKU/size/qty/price reliable)
+            const parsePdfText = (text) => {
+                const imp = blankImport();
+                if (/tax invoice/i.test(text)) imp.docType='TI';
+                const lines = text.split(/\n/).map(l=>l.trim()).filter(Boolean);
+                // header fields — the buyer block is one glued line; extract with regexes
+                const grab = (re) => { const m=text.match(re); return m?m[1].trim():''; };
+                imp.invoiceData.piNumber = grab(/INVOICE#\s*([^\s]+)/i) || grab(/Document Number:?\s*([^\n]+)/i);
+                imp.invoiceData.customerName = grab(/CUSTOMER NAME:\s*(.*?)(?:ADDRESS LINE 1:|$)/is);
+                imp.invoiceData.addressLine1 = grab(/ADDRESS LINE 1:\s*(.*?)(?:ADDRESS LINE 2:|CITY:|$)/is);
+                imp.invoiceData.addressLine2 = grab(/ADDRESS LINE 2:\s*(.*?)(?:CITY:|$)/is);
+                imp.invoiceData.city = grab(/CITY:\s*(.*?)(?:PINCODE:|$)/is);
+                imp.invoiceData.pincode = grab(/PINCODE:\s*(.*?)(?:STATE:|$)/is);
+                imp.invoiceData.state = grab(/STATE:\s*(.*?)(?:GST NO:|GST NUMBER:|$)/is);
+                imp.invoiceData.gstNo = grab(/GST NO:\s*(.*?)(?:CONTACT PERSON:|$)/is);
+                imp.invoiceData.contactPerson = grab(/CONTACT PERSON:\s*(.*?)(?:CONTACT DETAILS:|$)/is);
+                imp.invoiceData.contactDetails = grab(/CONTACT DETAILS:\s*(.*?)(?:BANKING|$)/is);
+                imp.invoiceData.totalCartons = grab(/TOTAL CARTONS:\s*(.*?)(?:E-WAY|$)/is);
+                imp.invoiceData.ewayBillNumber = grab(/E-WAY BILL:\s*(.*?)(?:PAYMENT TERMS:|$)/is);
+                setPaymentTerms(imp.invoiceData, grab(/PAYMENT TERMS:\s*(.*?)(?:LOGISTICS|$)/is));
+                const lg = grab(/LOGISTICS CHARGES:\s*(.*?)(?:\n|$)/is); imp.invoiceData.logisticsCharges = /free/i.test(lg)?0:num(lg);
+                imp.customerData.customerName = imp.invoiceData.customerName;
+                imp.customerData.city = imp.invoiceData.city;
+                imp.customerData.pincode = imp.invoiceData.pincode;
+                imp.customerData.customerMobile = imp.invoiceData.contactDetails.replace(/\D/g,'').slice(-10);
+                // product lines
+                const tail = /(\d{8})\s*(?:₹|Rs\.?|INR)?\s*(\d+)\s*(?:₹|Rs\.?|INR)\s*([\d.]+)\s*(?:₹|Rs\.?|INR)\s*([\d.]+)\s*(?:₹|Rs\.?|INR)\s*([\d.]+)\s*$/;
+                const head = /^(\d+)\s+(LA\S+)/;
+                lines.forEach(l => {
+                    const mt = l.match(tail), mh = l.match(head);
+                    if (!(mt && mh)) return;
+                    let token = mh[2];
+                    for (const s of KNOWN_SIZES){ if (token.endsWith(s+s)){ token=token.slice(0,-s.length); break; } }
+                    const child = token;
+                    const size = child.split('_').pop();
+                    let mid = l.slice(mh[0].length, l.length - mt[0].length).trim();
+                    for (const s of KNOWN_SIZES){ if (mid.startsWith(s)){ mid=mid.slice(s.length).trim(); break; } }
+                    mid = mid.replace(/\d{8}.*$/,'').trim(); // drop any glued trailing hsn
+                    imp.lineItems.push({ quantity: parseInt(mt[2])||1, product:{
+                        'Parent SKU Code': child.split('_').slice(0,2).join('_'),
+                        'Child SKU Code': child, 'Color': '', 'Size': size, 'Category': mid,
+                        'MRP': num(mt[3]), 'WSP': num(mt[4]), 'HSN': mt[1], 'Image URL': ''
+                    }});
+                });
+                return imp;
+            };
+
+            const applyImported = (imp, label, wasPdf) => {
+                if (!imp.lineItems.length){ flash('❌ Could not find any product lines in '+label+'. Try the Excel/CSV version.'); return; }
+                setDocType(imp.docType || 'PI');
+                setCustomerData(prev => ({ ...prev, ...imp.customerData }));
+                setInvoiceData(prev => ({ ...prev, ...imp.invoiceData }));
+                const prods = imp.lineItems.map(it => it.product);
+                setProducts(prods);
+                setCategories([...new Set(prods.map(p=>p.Category))].filter(Boolean));
+                const od={}; imp.lineItems.forEach(it => { od[it.product['Child SKU Code']] = it.quantity; });
+                setOrderData(od);
+                setUploadedCSV('(imported from '+label+')');
+                setEditMode(true); setMode('flow'); setCurrentStep(5);
+                flash('✏️ Imported '+imp.lineItems.length+' items from '+label+(wasPdf?' — check Color/Category (PDF glues these; Excel/CSV is exact).':' — edit and re-download.'));
+            };
+
             const loadExistingInvoice = (event) => {
                 const file = event.target.files[0]; if(!file) return;
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    try {
-                        const text = e.target.result;
-                        const m = text.match(/<script id="umora-pi-data" type="application\/json">([\s\S]*?)<\/script>/);
-                        if (!m) { flash('❌ This file has no editable UMORA invoice data. Only invoices generated by this new tool can be re-edited.'); event.target.value=''; return; }
-                        const data = JSON.parse(m[1]);
-                        setDocType(data.docType || 'PI');
-                        setCustomerData(prev => ({ ...prev, ...(data.customerData||{}) }));
-                        setInvoiceData(prev => ({ ...prev, ...(data.invoiceData||{}) }));
-                        const items = data.lineItems || [];
-                        const prods = items.map(it => it.product);
-                        setProducts(prods);
-                        setCategories([...new Set(prods.map(p=>p.Category))].filter(Boolean));
-                        const od={}; items.forEach(it => { od[it.product['Child SKU Code']] = it.quantity; });
-                        setOrderData(od);
-                        setUploadedCSV('(from existing invoice)');
-                        setEditMode(true);
-                        setMode('flow');
-                        setCurrentStep(5);
-                        flash('✏️ Loaded existing '+(DOC_LABELS[data.docType||'PI'])+' — edit and re-download.');
-                    } catch (err) { flash('❌ Could not read invoice: '+err.message); }
-                    event.target.value='';
-                };
-                reader.readAsText(file);
+                const name = file.name.toLowerCase();
+                const done = () => { event.target.value=''; };
+                try {
+                    if (name.endsWith('.html') || name.endsWith('.htm')) {
+                        const reader = new FileReader();
+                        reader.onload = (e) => {
+                            const text = e.target.result;
+                            const m = text.match(/<script id="umora-pi-data" type="application\/json">([\s\S]*?)<\/script>/);
+                            if (m) {
+                                try { const data = JSON.parse(m[1]); applyImported({ docType:data.docType, customerData:data.customerData||{}, invoiceData:data.invoiceData||{}, lineItems:data.lineItems||[] }, file.name, false); }
+                                catch (err){ flash('❌ Corrupt invoice data: '+err.message); }
+                            } else {
+                                // fall back to scraping the printed table out of the HTML
+                                const div=document.createElement('div'); div.innerHTML=text;
+                                const rows=[...div.querySelectorAll('tr')].map(tr=>[...tr.querySelectorAll('th,td')].map(td=>td.textContent));
+                                const imp=parseAOA(rows);
+                                // also read labelled DIVs
+                                div.querySelectorAll('div').forEach(d=>{ const t=d.textContent||''; const mm=t.match(/^([A-Z][A-Z0-9 \/-]+?):\s*(.+)$/); if(mm) applyLabel(imp, mm[1], mm[2]); });
+                                applyImported(imp, file.name, false);
+                            }
+                            done();
+                        };
+                        reader.readAsText(file);
+                    } else if (name.endsWith('.csv')) {
+                        Papa.parse(file, { header:false, skipEmptyLines:true, complete:(res)=>{ applyImported(parseAOA(res.data), file.name, false); done(); }, error:(e)=>{ flash('❌ CSV error: '+e.message); done(); } });
+                    } else if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
+                        const reader = new FileReader();
+                        reader.onload = (e) => {
+                            try { const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'}); const ws=wb.Sheets[wb.SheetNames[0]]; const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''}); applyImported(parseAOA(rows), file.name, false); }
+                            catch (err){ flash('❌ Excel error: '+err.message); }
+                            done();
+                        };
+                        reader.readAsArrayBuffer(file);
+                    } else if (name.endsWith('.pdf')) {
+                        if (!window.pdfjsLib){ flash('❌ PDF reader not loaded — check your internet, or use the Excel/CSV version.'); done(); return; }
+                        const reader = new FileReader();
+                        reader.onload = async (e) => {
+                            try {
+                                const pdf = await window.pdfjsLib.getDocument({ data:new Uint8Array(e.target.result) }).promise;
+                                let text='';
+                                for (let p=1;p<=pdf.numPages;p++){ const page=await pdf.getPage(p); const tc=await page.getTextContent(); let last=null; tc.items.forEach(it=>{ if(last!==null && it.transform[5]<last-2) text+='\n'; text+=it.str+' '; last=it.transform[5]; }); text+='\n'; }
+                                applyImported(parsePdfText(text), file.name, true);
+                            } catch (err){ flash('❌ PDF error: '+err.message+' — try the Excel/CSV version.'); }
+                            done();
+                        };
+                        reader.readAsArrayBuffer(file);
+                    } else { flash('❌ Unsupported file. Use .html, .csv, .xlsx or .pdf'); done(); }
+                } catch (err){ flash('❌ Import failed: '+err.message); done(); }
             };
 
             // ---- Build invoice HTML (with embedded editable data) ----
@@ -476,8 +651,8 @@
                                 <div style={{ border:'2px solid #eef0f6', borderRadius:'12px', padding:'26px' }}>
                                     <div style={{ fontSize:'34px' }}>✏️</div>
                                     <h3 style={{ margin:'10px 0 6px' }}>Edit Existing</h3>
-                                    <p style={{ fontSize:'13px', color:'#6b7280', minHeight:'40px' }}>Upload an invoice made by this tool to change and re-download.</p>
-                                    <input type="file" accept=".html,.htm" ref={editInputRef} style={{ display:'none' }} onChange={loadExistingInvoice} />
+                                    <p style={{ fontSize:'13px', color:'#6b7280', minHeight:'40px' }}>Upload a past invoice — <strong>Excel, CSV, PDF</strong> or HTML — to import and modify.</p>
+                                    <input type="file" accept=".html,.htm,.csv,.xlsx,.xls,.pdf" ref={editInputRef} style={{ display:'none' }} onChange={loadExistingInvoice} />
                                     <button className="btn-secondary" style={{ width:'100%' }} onClick={()=>editInputRef.current?.click()}>Upload Invoice…</button>
                                 </div>
                             </div>
