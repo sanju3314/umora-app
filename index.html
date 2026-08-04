@@ -10,6 +10,13 @@
     <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
     <script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script src="https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+    <script src="https://unpkg.com/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
+    <script>
+        // if unpkg is unreachable, fall back to jsDelivr for the screenshot reader
+        if (!window.Tesseract) {
+            document.write('<scr' + 'ipt src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"><\/scr' + 'ipt>');
+        }
+    </script>
     <script>
         if (window.pdfjsLib) {
             window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
@@ -77,6 +84,394 @@
 
         const DOC_LABELS = { PI: 'PROFORMA INVOICE', TI: 'TAX INVOICE' };
 
+        /* =================================================================
+           ORDER SCREENSHOT READER
+           Reads WhatsApp price-list screenshots, finds the green tick marks
+           the buyer has drawn, and works out which style each tick belongs to.
+           ================================================================= */
+
+        // Make sizes comparable: "1-2 Y" / "1-2Yr" / "0-3 Months" -> "1-2Y" / "0-3M"
+        const normSize = (s) => String(s == null ? '' : s).toUpperCase().replace(/\s+/g, '')
+            .replace(/MONTHS?$/, 'M').replace(/MTHS?$/, 'M').replace(/MOS?$/, 'M')
+            .replace(/YEARS?$/, 'Y').replace(/YRS?$/, 'Y').replace(/YR$/, 'Y');
+
+        const SIZE_ORDER = ['0-3M','0-6M','3-6M','6-9M','6-12M','9-12M','12-18M','18-24M','1-2Y','2-3Y','3-4Y','4-5Y','5-6Y','6-7Y','7-8Y','8-9Y','9-10Y'];
+        const sizeRank = (n) => { const i = SIZE_ORDER.indexOf(normSize(n)); return i < 0 ? 900 : i; };
+
+        const SKU_RE  = /\bLA\s*([0-9]{2})\s*[_\-–—]?\s*([0-9]{3})\b/i;
+        // deliberately loose — OCR often reads "Variant" as "Vanant" and drops the colon
+        const VAR_RE  = /\bVA[A-Z]{0,3}N[TI]\s*[:;.,]?\s*([A-Z])\s*([A-Z0-9]{2})\b/i;
+        // "Color" often loses its first letters to the product photo beside it
+        const COL_RE  = /(?:C[O0]L[O0]U?R|[O0]L[O0]R|\bL[O0]R)\s*[:;.,]?\s+([A-Za-z][A-Za-z \-&+]{1,28})/i;
+        const fixDigits = (s) => String(s).toUpperCase().replace(/O/g, '0').replace(/[IL]/g, '1').replace(/S/g, '5').replace(/B/g, '8');
+
+        // small edit-distance helper so "Hlue" still matches "Blue"
+        function editDist(a, b) {
+            a = String(a); b = String(b);
+            const m = a.length, n = b.length;
+            if (!m) return n; if (!n) return m;
+            let prev = new Array(n + 1), cur = new Array(n + 1);
+            for (let j = 0; j <= n; j++) prev[j] = j;
+            for (let i = 1; i <= m; i++) {
+                cur[0] = i;
+                for (let j = 1; j <= n; j++) {
+                    cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+                }
+                const t = prev; prev = cur; cur = t;
+            }
+            return prev[n];
+        }
+        const colourKey = (s) => String(s || '').toLowerCase().replace(/[^a-z]/g, '');
+        const SIZE_RE = /([0-9]{1,2})\s*[-–—]\s*([0-9]{1,2})\s*(MONTHS?|MTHS?|YEARS?|YRS?|M|Y)\b/ig;
+
+        // --- find blobs of bright hand-drawn green ---
+        function findGreenBlobs(canvas) {
+            const W = canvas.width, H = canvas.height;
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
+            const px = ctx.getImageData(0, 0, W, H).data;
+            const cell = 5;
+            const gw = Math.ceil(W / cell), gh = Math.ceil(H / cell);
+            const grid = new Uint8Array(gw * gh);
+            for (let y = 0; y < H; y++) {
+                const row = y * W;
+                for (let x = 0; x < W; x++) {
+                    const i = (row + x) * 4, r = px[i], g = px[i + 1], b = px[i + 2];
+                    // bright, strongly green — excludes pale green chips and dark green text
+                    if (g > 140 && (g - r) > 60 && (g - b) > 45) grid[Math.floor(y / cell) * gw + Math.floor(x / cell)] = 1;
+                }
+            }
+            const seen = new Uint8Array(gw * gh);
+            const blobs = [];
+            const stack = [];
+            for (let i = 0; i < grid.length; i++) {
+                if (!grid[i] || seen[i]) continue;
+                stack.length = 0; stack.push(i); seen[i] = 1;
+                let n = 0, minX = 1e9, maxX = -1, minY = 1e9, maxY = -1;
+                while (stack.length) {
+                    const c = stack.pop();
+                    const cy = Math.floor(c / gw), cx = c - cy * gw;
+                    n++;
+                    if (cx < minX) minX = cx; if (cx > maxX) maxX = cx;
+                    if (cy < minY) minY = cy; if (cy > maxY) maxY = cy;
+                    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+                        const nx = cx + dx, ny = cy + dy;
+                        if (nx < 0 || ny < 0 || nx >= gw || ny >= gh) continue;
+                        const ni = ny * gw + nx;
+                        if (grid[ni] && !seen[ni]) { seen[ni] = 1; stack.push(ni); }
+                    }
+                }
+                const bw = (maxX - minX + 1) * cell, bh = (maxY - minY + 1) * cell;
+                if (n >= 20 && bw > 22 && bh > 12) {
+                    blobs.push({
+                        x0: minX * cell, x1: (maxX + 1) * cell, y0: minY * cell, y1: (maxY + 1) * cell,
+                        cx: (minX + maxX + 1) / 2 * cell, cy: (minY + maxY + 1) / 2 * cell, area: n * cell * cell
+                    });
+                }
+            }
+            return blobs;
+        }
+
+        // --- find the white product cards on the page (much more reliable than guessing
+        //     the layout from OCR text, because the price list always uses white cards) ---
+        function findWhiteCards(canvas) {
+            const W = canvas.width, H = canvas.height;
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
+            const px = ctx.getImageData(0, 0, W, H).data;
+            const cell = 4;
+            const gw = Math.ceil(W / cell), gh = Math.ceil(H / cell);
+            const grid = new Uint8Array(gw * gh);
+            // sample the centre pixel of each cell — cheap and good enough
+            for (let cy = 0; cy < gh; cy++) {
+                const y = Math.min(H - 1, cy * cell + (cell >> 1));
+                for (let cx = 0; cx < gw; cx++) {
+                    const x = Math.min(W - 1, cx * cell + (cell >> 1));
+                    const i = (y * W + x) * 4, r = px[i], g = px[i + 1], b = px[i + 2];
+                    const mn = Math.min(r, g, b), mx = Math.max(r, g, b);
+                    if (mn > 232 && (mx - mn) < 14) grid[cy * gw + cx] = 1;
+                }
+            }
+            const seen = new Uint8Array(gw * gh);
+            const out = [];
+            const stack = [];
+            for (let i = 0; i < grid.length; i++) {
+                if (!grid[i] || seen[i]) continue;
+                stack.length = 0; stack.push(i); seen[i] = 1;
+                let n = 0, minX = 1e9, maxX = -1, minY = 1e9, maxY = -1;
+                while (stack.length) {
+                    const c = stack.pop();
+                    const cy = (c / gw) | 0, cx = c - cy * gw;
+                    n++;
+                    if (cx < minX) minX = cx; if (cx > maxX) maxX = cx;
+                    if (cy < minY) minY = cy; if (cy > maxY) maxY = cy;
+                    if (cx > 0 && grid[c - 1] && !seen[c - 1]) { seen[c - 1] = 1; stack.push(c - 1); }
+                    if (cx < gw - 1 && grid[c + 1] && !seen[c + 1]) { seen[c + 1] = 1; stack.push(c + 1); }
+                    if (cy > 0 && grid[c - gw] && !seen[c - gw]) { seen[c - gw] = 1; stack.push(c - gw); }
+                    if (cy < gh - 1 && grid[c + gw] && !seen[c + gw]) { seen[c + gw] = 1; stack.push(c + gw); }
+                }
+                const x0 = minX * cell, x1 = (maxX + 1) * cell, y0 = minY * cell, y1 = (maxY + 1) * cell;
+                const bw = x1 - x0, bh = y1 - y0;
+                if (bw > W * 0.22 && bw < W * 0.75 && bh > H * 0.08 && bh / bw > 0.5 && bh / bw < 3.2) {
+                    out.push({ x0, y0, x1, y1, parent: '', variant: '', color: '', sizes: [] });
+                }
+            }
+            out.sort((a, b) => (a.y0 - b.y0) || (a.x0 - b.x0));
+            return out;
+        }
+
+        // --- flatten Tesseract output to a flat list of text lines with boxes ---
+        function flattenLines(data) {
+            const out = [];
+            const push = (l) => { if (l && l.bbox && l.text) out.push({ text: String(l.text).trim(), bbox: l.bbox }); };
+            if (data.blocks && data.blocks.length) {
+                data.blocks.forEach(b => (b.paragraphs || []).forEach(p => (p.lines || []).forEach(push)));
+            }
+            if (!out.length && data.lines) data.lines.forEach(push);
+            if (!out.length && data.words) data.words.forEach(push);
+            return out;
+        }
+
+        // word-level boxes — needed because Tesseract glues side-by-side columns into one line
+        function flattenWords(data) {
+            const out = [];
+            const push = (w) => { if (w && w.bbox && w.text && w.text.trim()) out.push({ text: w.text.trim(), bbox: w.bbox }); };
+            if (data.blocks && data.blocks.length) {
+                data.blocks.forEach(b => (b.paragraphs || []).forEach(p => (p.lines || []).forEach(l => (l.words || []).forEach(push))));
+            }
+            if (!out.length && data.words) data.words.forEach(push);
+            return out;
+        }
+
+        const SKU_WORD_RE = /^[^A-Z0-9]*LA\s*([0-9]{2})\s*[_\-–—]?\s*([0-9]{3})[^A-Z0-9]*$/i;
+
+        // pull out every SKU heading with its own box, even when two sit side by side
+        function findSkuHeadings(data, W) {
+            const words = flattenWords(data);
+            const hits = [];
+            for (let i = 0; i < words.length; i++) {
+                const w = words[i];
+                let m = w.text.match(SKU_WORD_RE), bb = { ...w.bbox };
+                if (!m && i + 1 < words.length) {
+                    const n = words[i + 1];
+                    if (Math.abs(n.bbox.y0 - w.bbox.y0) < 22 && (n.bbox.x0 - w.bbox.x1) < 70 && (n.bbox.x0 - w.bbox.x1) > -10) {
+                        const m2 = (w.text + n.text).replace(/\s+/g, '').match(SKU_WORD_RE);
+                        if (m2) { m = m2; bb = { x0: Math.min(bb.x0, n.bbox.x0), x1: Math.max(bb.x1, n.bbox.x1), y0: Math.min(bb.y0, n.bbox.y0), y1: Math.max(bb.y1, n.bbox.y1) }; i++; }
+                    }
+                }
+                if (m) hits.push({ parent: ('LA' + m[1] + '_' + m[2]).toUpperCase(), cx: (bb.x0 + bb.x1) / 2, y: bb.y0, hx0: bb.x0 });
+            }
+            // line level as well — catches headings the word pass missed; positions are approximate
+            flattenLines(data).forEach(l => {
+                const all = [...l.text.matchAll(/\bLA\s*([0-9]{2})\s*[_\-–—.]?\s*([0-9]{3})\b/ig)];
+                const n = all.length; if (!n) return;
+                const seg = (l.bbox.x1 - l.bbox.x0) / n;
+                all.forEach((m, k) => {
+                    const parent = ('LA' + m[1] + '_' + m[2]).toUpperCase();
+                    const cx = l.bbox.x0 + seg * (k + 0.5);
+                    if (hits.some(h => h.parent === parent && Math.abs(h.cx - cx) < W * 0.22 && Math.abs(h.y - l.bbox.y0) < 60)) return;
+                    hits.push({ parent, cx, y: l.bbox.y0, hx0: l.bbox.x0 + seg * k });
+                });
+            });
+            return hits;
+        }
+
+        // --- turn OCR lines into product "cards" laid out in columns ---
+        function buildCards(headings, lines, W, H) {
+            // drop duplicate readings of the same heading
+            const skuLines = [];
+            headings.forEach(h => {
+                if (!skuLines.some(s => s.parent === h.parent && Math.abs(s.cx - h.cx) < W * 0.12 && Math.abs(s.y - h.y) < 40)) skuLines.push({ ...h });
+            });
+            if (!skuLines.length) return [];
+            // cluster the SKU headings into columns
+            const cols = [];
+            skuLines.slice().sort((a, b) => a.cx - b.cx).forEach(s => {
+                const c = cols.find(c => Math.abs(c.center - s.cx) < W * 0.20);
+                if (c) { c.vals.push(s.cx); c.center = c.vals.reduce((a, b) => a + b, 0) / c.vals.length; }
+                else cols.push({ center: s.cx, vals: [s.cx] });
+            });
+            cols.sort((a, b) => a.center - b.center);
+            const colIdx = (x) => { let bi = 0, bd = Infinity; cols.forEach((c, i) => { const d = Math.abs(c.center - x); if (d < bd) { bd = d; bi = i; } }); return bi; };
+            // left edge of each column = leftmost heading in it; right edge stops just before the next column
+            cols.forEach((c, i) => { c.left = Math.min(...skuLines.filter(s => colIdx(s.cx) === i).map(s => (s.hx0 != null ? s.hx0 : s.cx))); });
+            const bounds = cols.map((c, i) => ({
+                x0: i === 0 ? 0 : Math.max(0, c.left - W * 0.06),
+                x1: i === cols.length - 1 ? W : Math.max(c.center + 10, cols[i + 1].left - W * 0.055)
+            }));
+            const cards = [];
+            cols.forEach((c, ci) => {
+                const list = skuLines.filter(s => colIdx(s.cx) === ci).sort((a, b) => a.y - b.y);
+                list.forEach((s, i) => {
+                    cards.push({
+                        parent: s.parent, variant: '', color: '', sizes: [],
+                        x0: bounds[ci].x0, x1: bounds[ci].x1, hx0: s.hx0 != null ? s.hx0 : bounds[ci].x0, hy: s.y,
+                        y0: Math.max(0, s.y - 35),
+                        y1: (i + 1 < list.length) ? (list[i + 1].y - 35) : H
+                    });
+                });
+            });
+            // pull variant + visible sizes out of the text sitting inside each card
+            cards.forEach(cd => {
+                lines.forEach(l => {
+                    const cx = (l.bbox.x0 + l.bbox.x1) / 2, cy = (l.bbox.y0 + l.bbox.y1) / 2;
+                    if (cx < cd.x0 || cx > cd.x1 || cy < cd.y0 || cy > cd.y1) return;
+                    if (!cd.variant) { const vm = l.text.match(VAR_RE); if (vm) cd.variant = (vm[1].toUpperCase() + fixDigits(vm[2])); }
+                    if (!cd.color) { const cm = l.text.match(COL_RE); if (cm) cd.color = cm[1].trim(); }
+                    SIZE_RE.lastIndex = 0;
+                    let sm;
+                    while ((sm = SIZE_RE.exec(l.text)) !== null) {
+                        const unit = /^Y/i.test(sm[3]) ? 'Y' : 'M';
+                        const sz = parseInt(sm[1]) + '-' + parseInt(sm[2]) + unit;
+                        if (!cd.sizes.includes(sz)) cd.sizes.push(sz);
+                    }
+                });
+            });
+            return cards;
+        }
+
+        function makeThumb(canvas, w) {
+            const t = document.createElement('canvas');
+            const s = w / canvas.width;
+            t.width = w; t.height = Math.round(canvas.height * s);
+            t.getContext('2d').drawImage(canvas, 0, 0, t.width, t.height);
+            return t.toDataURL('image/jpeg', 0.6);
+        }
+
+        async function loadToCanvas(file) {
+            const url = URL.createObjectURL(file);
+            const img = await new Promise((res, rej) => {
+                const im = new Image();
+                im.onload = () => res(im); im.onerror = rej; im.src = url;
+            });
+            const scale = Math.min(2.4, Math.max(1, 1500 / img.naturalWidth));
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.round(img.naturalWidth * scale);
+            canvas.height = Math.round(img.naturalHeight * scale);
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
+            ctx.imageSmoothingQuality = 'high';
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            URL.revokeObjectURL(url);
+            return canvas;
+        }
+
+        // crop one card out, blow it up and boost contrast so the small grey text reads
+        function cropScaled(canvas, x0, y0, x1, y1, targetW, cap) {
+            const w = Math.max(1, Math.round(x1 - x0)), h = Math.max(1, Math.round(y1 - y0));
+            const s = Math.min(cap || 3, Math.max(1, targetW / w));
+            const c = document.createElement('canvas');
+            c.width = Math.round(w * s); c.height = Math.round(h * s);
+            const ctx = c.getContext('2d', { willReadFrequently: true });
+            ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+            ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+            ctx.drawImage(canvas, Math.round(x0), Math.round(y0), w, h, 0, 0, c.width, c.height);
+            const d = ctx.getImageData(0, 0, c.width, c.height), px = d.data;
+            for (let i = 0; i < px.length; i += 4) {
+                let g = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
+                g = (g - 132) * 1.9 + 128;
+                px[i] = px[i + 1] = px[i + 2] = g < 0 ? 0 : (g > 255 ? 255 : g);
+            }
+            ctx.putImageData(d, 0, 0);
+            return c;
+        }
+
+        function readCardDetail(text) {
+            const out = { variant: '', color: '', sizes: [] };
+            const vm = text.match(VAR_RE); if (vm) out.variant = vm[1].toUpperCase() + fixDigits(vm[2]);
+            const cm = text.match(COL_RE); if (cm) out.color = cm[1].trim().replace(/\s+/g, ' ');
+            SIZE_RE.lastIndex = 0;
+            let sm;
+            while ((sm = SIZE_RE.exec(text)) !== null) {
+                const unit = /^Y/i.test(sm[3]) ? 'Y' : 'M';
+                const sz = parseInt(sm[1]) + '-' + parseInt(sm[2]) + unit;
+                if (!out.sizes.includes(sz)) out.sizes.push(sz);
+            }
+            return out;
+        }
+
+        const ocrText = async (worker, img) => flattenLines((await worker.recognize(img, {}, { blocks: true, text: true })).data).map(l => l.text).join('\n');
+
+        // zoom into one card and read it. The photo sits top-left and confuses OCR,
+        // so the SKU / colour / variant block is read from the right of it.
+        async function readCardZoom(canvas, cd, worker) {
+            const w = cd.x1 - cd.x0, h = cd.y1 - cd.y0;
+            // two overlapping crops at different magnifications — between them they
+            // catch the colour line far more often than either does alone
+            const t1a = await ocrText(worker, cropScaled(canvas, cd.x0 + w * 0.40, cd.y0, cd.x1, cd.y0 + h * 0.42, 1150, 3));
+            const t1b = await ocrText(worker, cropScaled(canvas, cd.x0 + w * 0.36, cd.y0 + h * 0.08, cd.x1, cd.y0 + h * 0.34, 1200, 4));
+            const t1 = t1a + '\n' + t1b;
+            const m1 = t1.match(SKU_RE);
+            if (m1) cd.parent = ('LA' + m1[1] + '_' + m1[2]).toUpperCase();
+            const d1 = readCardDetail(t1a), d1b = readCardDetail(t1b);
+            cd.variant = d1.variant || d1b.variant || '';
+            cd.color = d1.color || d1b.color || '';
+            cd.infoText = t1;
+            const t2 = await ocrText(worker, cropScaled(canvas, cd.x0, cd.y0 + h * 0.28, cd.x1, cd.y1, 1250));
+            const d2 = readCardDetail(t2);
+            if (d2.sizes.length) cd.sizes = d2.sizes;
+            if (!cd.color && d2.color) cd.color = d2.color;
+            if (!cd.variant && d2.variant) cd.variant = d2.variant;
+            if (!cd.parent) { const m2 = t2.match(SKU_RE); if (m2) cd.parent = ('LA' + m2[1] + '_' + m2[2]).toUpperCase(); }
+            cd.sizeText = t2;
+            return cd;
+        }
+
+        async function readOrderScreenshot(file, worker) {
+            const canvas = await loadToCanvas(file);
+            const blobs = findGreenBlobs(canvas);
+
+            // preferred route: locate the white cards, then read only the ticked ones
+            const boxes = findWhiteCards(canvas);
+            if (boxes.length >= 2) {
+                const hit = boxes.filter(c => blobs.some(b => b.cx >= c.x0 && b.cx <= c.x1 && b.cy >= c.y0 && b.cy <= c.y1));
+                if (hit.length) {
+                    await worker.setParameters({ tessedit_pageseg_mode: '6' });
+                    for (const cd of hit) { try { await readCardZoom(canvas, cd, worker); } catch (e) { } }
+                    await worker.setParameters({ tessedit_pageseg_mode: '3' });
+                    const good = hit.filter(c => c.parent);
+                    if (good.length) return { fileName: file.name, thumb: makeThumb(canvas, 150), cards: boxes, ticked: good, blobCount: blobs.length };
+                }
+            }
+
+            // fallback: work the layout out from the OCR text itself
+            await worker.setParameters({ tessedit_pageseg_mode: '3' });
+            const { data } = await worker.recognize(canvas, {}, { blocks: true, text: true });
+            const lines = flattenLines(data);
+            const cards = buildCards(findSkuHeadings(data, canvas.width), lines, canvas.width, canvas.height);
+            const ticked = cards.filter(cd => blobs.some(b => b.cx >= cd.x0 && b.cx <= cd.x1 && b.cy >= cd.y0 && b.cy <= cd.y1));
+
+            // second pass — zoom into the ticked cards only, skipping the product photo
+            // (the photo confuses Tesseract's layout analysis and swallows the small grey text)
+            if (ticked.length) {
+                await worker.setParameters({ tessedit_pageseg_mode: '6' });
+                for (const cd of ticked) {
+                    const cardH = Math.max(60, cd.y1 - cd.y0);
+                    try {
+                        const info = cropScaled(canvas, Math.max(0, cd.hx0 - 10), Math.max(0, cd.hy - 14),
+                                                cd.x1, Math.min(canvas.height, cd.hy + Math.max(150, cardH * 0.32)), 1300);
+                        const t1 = flattenLines((await worker.recognize(info, {}, { blocks: true, text: true })).data).map(l => l.text).join('\n');
+                        const d1 = readCardDetail(t1);
+                        if (d1.variant) cd.variant = d1.variant;
+                        if (d1.color) cd.color = d1.color;
+                        cd.infoText = t1;
+                    } catch (e) { /* keep first-pass values */ }
+                    try {
+                        const rows = cropScaled(canvas, cd.x0, Math.min(canvas.height, cd.hy + cardH * 0.22),
+                                                cd.x1, Math.min(canvas.height, cd.y1), 1400);
+                        const t2 = flattenLines((await worker.recognize(rows, {}, { blocks: true, text: true })).data).map(l => l.text).join('\n');
+                        const d2 = readCardDetail(t2);
+                        if (d2.sizes.length) cd.sizes = d2.sizes;
+                        if (!cd.color && d2.color) cd.color = d2.color;
+                        if (!cd.variant && d2.variant) cd.variant = d2.variant;
+                        cd.sizeText = t2;
+                    } catch (e) { /* keep first-pass values */ }
+                }
+                await worker.setParameters({ tessedit_pageseg_mode: '3' });
+            }
+            return { fileName: file.name, thumb: makeThumb(canvas, 150), cards, ticked, blobCount: blobs.length };
+        }
+
+        // exposed for troubleshooting from the browser console
+        window.UMORA_OCR = { findGreenBlobs, findWhiteCards, flattenLines, flattenWords, buildCards, readOrderScreenshot, readCardZoom, cropScaled, normSize, loadToCanvas };
+
         function App() {
             const [mode, setMode] = useState('start');          // 'start' | 'flow'
             const [docType, setDocType] = useState('PI');        // 'PI' | 'TI'
@@ -108,9 +503,26 @@
             const [notice, setNotice] = useState('');
             const [lightbox, setLightbox] = useState({ visible:false, imageUrl:'' });
 
+            // --- bulk fill by style ---
+            const [selectMode, setSelectMode] = useState(false);
+            const [selectedGroups, setSelectedGroups] = useState([]);   // ["LA15_170_C01", ...]
+            const [bulkOpen, setBulkOpen] = useState(false);
+            const [bulkQty, setBulkQty] = useState({});                  // { "0-3M": 1 }
+            const [bulkAll, setBulkAll] = useState('');
+            const [bulkMode, setBulkMode] = useState('set');             // 'set' | 'add'
+            const [bulkCap, setBulkCap] = useState(true);
+
+            // --- order screenshots ---
+            const [shotOpen, setShotOpen] = useState(false);
+            const [shotBusy, setShotBusy] = useState(null);              // { done, total, label }
+            const [shotRows, setShotRows] = useState([]);
+            const [shotMisses, setShotMisses] = useState([]);
+            const [shotDefaultQty, setShotDefaultQty] = useState(1);
+
             const fileInputRef = useRef(null);
             const inventoryFileInputRef = useRef(null);
             const editInputRef = useRef(null);
+            const shotInputRef = useRef(null);
 
             const flash = (msg) => { setNotice(msg); setTimeout(()=>setNotice(''), 4000); };
             const openLightbox = (u) => setLightbox({ visible:true, imageUrl:u });
@@ -233,6 +645,198 @@
             };
 
             const getCurrentCategoryProducts = () => categories.length? products.filter(p=>p.Category===categories[currentCategory]) : [];
+
+            /* ============ BULK FILL BY STYLE (parent SKU + colour) ============ */
+
+            const allGroups = React.useMemo(() => groupProductsByParentAndVariant(products), [products]);
+            const gKey = (g) => `${g.parentSKU}_${g.variant}`;
+            const groupByKey = React.useMemo(() => { const m={}; allGroups.forEach(g=>m[gKey(g)]=g); return m; }, [allGroups]);
+
+            const toggleGroup = (key) => setSelectedGroups(prev => prev.includes(key) ? prev.filter(k=>k!==key) : [...prev, key]);
+
+            const selectAllInCategory = () => {
+                const keys = groupProductsByParentAndVariant(getCurrentCategoryProducts()).map(gKey);
+                setSelectedGroups(prev => [...new Set([...prev, ...keys])]);
+                setSelectMode(true);
+            };
+            const clearSelection = () => setSelectedGroups([]);
+
+            // every size that appears in at least one selected style, de-duplicated
+            // ("3-6 M" and "3-6M" in the catalog are the same size) and in age order
+            const selectedSizes = () => {
+                const map = {};
+                selectedGroups.forEach(k => { const g=groupByKey[k]; if(g) g.sizes.forEach(s=>{ const n=normSize(s.size); if(!map[n]) map[n]=s.size; }); });
+                return Object.keys(map).sort((a,b)=>sizeRank(a)-sizeRank(b)).map(n=>({ norm:n, label:map[n] }));
+            };
+
+            const openBulk = () => {
+                if (!selectedGroups.length){ flash('⚠️ Tick at least one style first.'); return; }
+                const init={}; selectedSizes().forEach(s=>init[s.norm]='');
+                setBulkQty(init); setBulkAll(''); setBulkMode('set'); setBulkOpen(true);
+            };
+
+            const applyBulkAllSizes = (val) => {
+                const v = String(val).trim();
+                const next={}; Object.keys(bulkQty).forEach(s=>next[s]=v);
+                setBulkQty(next);
+            };
+
+            const executeBulk = () => {
+                const next = { ...orderData };
+                let applied=0, capped=0, skipped=0;
+                selectedGroups.forEach(k => {
+                    const g = groupByKey[k]; if(!g) return;
+                    g.sizes.forEach(s => {
+                        const raw = bulkQty[normSize(s.size)];
+                        if (raw===undefined || String(raw).trim()==='') return;   // untouched
+                        let q = parseInt(raw)||0;
+                        if (bulkMode==='add') q = (next[s.childSKU]||0) + q;
+                        const info = getStockInfo(s.childSKU);
+                        if (bulkCap && info.quantity!==null && q>info.quantity){ q=info.quantity; capped++; }
+                        if (q<=0){ delete next[s.childSKU]; skipped++; return; }
+                        next[s.childSKU]=q; applied++;
+                    });
+                });
+                setOrderData(next); setBulkOpen(false);
+                flash(`⚡ Filled ${applied} size(s) across ${selectedGroups.length} style(s)`+(capped?` · ${capped} trimmed to available stock`:'')+(skipped?` · ${skipped} skipped (no stock)`:''));
+            };
+
+            /* ============ ORDER SCREENSHOTS ============ */
+
+            // catalog sizes available for a given parent+variant
+            const sizesForGroup = (g) => g.sizes.map(s => ({
+                size: s.size, norm: normSize(s.size), childSKU: s.childSKU, wsp: s.wsp,
+                stock: getStockInfo(s.childSKU).quantity
+            })).sort((a,b)=>sizeRank(a.norm)-sizeRank(b.norm));
+
+            const variantsOf = (parent) => allGroups.filter(g => String(g.parentSKU).toUpperCase() === String(parent).toUpperCase());
+
+            // work out which colour of a style the buyer ticked, forgiving OCR slips
+            const findGroupFor = (parent, variant, color) => {
+                const cands = variantsOf(parent);
+                if (!cands.length) return null;
+                if (cands.length === 1) return cands[0];
+                if (variant){
+                    const v = String(variant).toUpperCase();
+                    const exact = cands.find(g => String(g.variant).toUpperCase() === v);
+                    if (exact) return exact;
+                    const near = cands.filter(g => editDist(String(g.variant).toUpperCase(), v) <= 1);
+                    if (near.length === 1) return near[0];
+                }
+                const c = colourKey(color);
+                if (c.length >= 3){
+                    const exact = cands.find(g => colourKey(g.color) === c);
+                    if (exact) return exact;
+                    // OCR often adds trailing junk — allow a clean prefix match
+                    const pre = cands.filter(g => { const k = colourKey(g.color); return k.length >= 4 && (c.startsWith(k) || k.startsWith(c)); });
+                    if (pre.length === 1) return pre[0];
+                    const scored = cands.map(g => ({ g, d: editDist(colourKey(g.color), c) })).sort((a, b) => a.d - b.d);
+                    const lim = Math.max(1, Math.floor(c.length * 0.28));
+                    if (scored.length && scored[0].d <= lim && (scored.length === 1 || scored[1].d > scored[0].d)) return scored[0].g;
+                }
+                return null;
+            };
+
+            const makeShotRow = (key, g, seen, thumb, file) => {
+                const cat = sizesForGroup(g);
+                const inStock = cat.filter(s => s.stock===null || s.stock>0);
+                return {
+                    key, group:g, parent:g.parentSKU, variant:g.variant, color:g.color, ocrColor:'',
+                    options:null, catSizes:cat, seenSizes:seen,
+                    sizes:(inStock.length?inStock:cat).map(s=>s.norm),
+                    qty:shotDefaultQty, include:true, thumb, file
+                };
+            };
+
+            // user picked the colour for a style OCR couldn't pin down
+            const shotResolve = (key, variantCode) => setShotRows(prev => prev.map(r => {
+                if (r.key!==key) return r;
+                const g = (r.options||[]).find(o=>String(o.variant)===String(variantCode));
+                if (!g) return r;
+                return { ...makeShotRow(r.key, g, r.seenSizes, r.thumb, r.file), qty:r.qty, include:true };
+            }));
+
+            const handleScreenshotUpload = async (event) => {
+                const files = Array.from(event.target.files||[]); event.target.value='';
+                if (!files.length) return;
+                if (!products.length){ flash('⚠️ Upload the catalog first (Step 2).'); return; }
+                if (!window.Tesseract){ flash('❌ Screenshot reader failed to load — check your internet connection and refresh.'); return; }
+                setShotBusy({ done:0, total:files.length, label:'Starting the reader (the first run downloads a small language pack)…' });
+                let worker;
+                try {
+                    worker = await window.Tesseract.createWorker('eng', 1, window.UMORA_TESS_OPTS || {});
+                } catch (err){
+                    setShotBusy(null); flash('❌ Could not start the screenshot reader: '+err.message); return;
+                }
+                const rows = [...shotRows];
+                const misses = [...shotMisses];
+                let seq = rows.length;
+                for (let i=0;i<files.length;i++){
+                    setShotBusy({ done:i, total:files.length, label:'Reading '+files[i].name });
+                    try {
+                        const res = await readOrderScreenshot(files[i], worker);
+                        res.ticked.forEach(t => {
+                            const g = findGroupFor(t.parent, t.variant, t.color);
+                            const seen = (t.sizes||[]).map(normSize);
+                            if (g){
+                                const k = g.parentSKU+'|'+g.variant;
+                                if (rows.some(r=>r.key===k)) return;                    // same style ticked twice
+                                rows.push(makeShotRow(k, g, seen, res.thumb, files[i].name));
+                                return;
+                            }
+                            const opts = variantsOf(t.parent);
+                            if (!opts.length){
+                                misses.push({ parent:t.parent, variant:t.variant, color:t.color, file:files[i].name, note:'this style is not in the catalog you uploaded' });
+                                return;
+                            }
+                            // style is in the catalog but we couldn't tell which colour — let the user pick
+                            rows.push({
+                                key:'?'+(seq++), group:null, parent:t.parent, variant:t.variant||'', color:'',
+                                ocrColor:t.color||'', options:opts, catSizes:[], seenSizes:seen, sizes:[],
+                                qty:shotDefaultQty, include:true, thumb:res.thumb, file:files[i].name
+                            });
+                        });
+                        if (!res.ticked.length){
+                            misses.push({ parent:'—', variant:'', color:'', file:files[i].name,
+                                note: res.blobCount ? 'green marks found but the style could not be read' : 'no green tick found in this image' });
+                        }
+                    } catch (err){
+                        misses.push({ parent:'—', variant:'', color:'', file:files[i].name, note:'could not read: '+err.message });
+                    }
+                }
+                try { await worker.terminate(); } catch(e){}
+                setShotRows(rows); setShotMisses(misses); setShotBusy(null);
+                flash(`📸 Found ${rows.length} ticked style(s) from ${files.length} screenshot(s).`);
+            };
+
+            const shotSetQty = (key, v) => setShotRows(prev => prev.map(r => r.key===key ? { ...r, qty: v===''?'':(parseInt(v)||0) } : r));
+            const shotToggleSize = (key, norm) => setShotRows(prev => prev.map(r => r.key!==key ? r :
+                ({ ...r, sizes: r.sizes.includes(norm) ? r.sizes.filter(s=>s!==norm) : [...r.sizes, norm] })));
+            const shotToggleInclude = (key) => setShotRows(prev => prev.map(r => r.key===key ? { ...r, include:!r.include } : r));
+            const shotRemove = (key) => setShotRows(prev => prev.filter(r=>r.key!==key));
+            const shotApplyQtyAll = (v) => { const q=parseInt(v)||0; setShotDefaultQty(q); setShotRows(prev=>prev.map(r=>({...r, qty:q}))); };
+            const shotOnlySeen = () => setShotRows(prev => prev.map(r => r.group ? ({ ...r, sizes: r.seenSizes.filter(s=>r.catSizes.some(c=>c.norm===s)) }) : r));
+            const shotAllSizes  = () => setShotRows(prev => prev.map(r => r.group ? ({ ...r, sizes: r.catSizes.map(c=>c.norm) }) : r));
+
+            const applyScreenshotRows = () => {
+                const next = { ...orderData };
+                let applied=0, capped=0, zero=0;
+                shotRows.filter(r=>r.include && r.group).forEach(r => {
+                    const q0 = parseInt(r.qty)||0;
+                    if (q0<=0) return;
+                    r.sizes.forEach(norm => {
+                        const s = r.catSizes.find(c=>c.norm===norm); if(!s) return;
+                        let q=q0;
+                        if (s.stock!==null && q>s.stock){ q=s.stock; capped++; }
+                        if (q<=0){ zero++; return; }
+                        next[s.childSKU]=q; applied++;
+                    });
+                });
+                setOrderData(next); setShotOpen(false);
+                flash(`✅ Added ${applied} line(s) from screenshots`+(capped?` · ${capped} trimmed to stock`:'')+(zero?` · ${zero} out of stock`:''));
+            };
+
+            const resetShots = () => { setShotRows([]); setShotMisses([]); };
 
             const validateCustomerInfo = () => {
                 const { customerName, customerMobile, city, pincode } = customerData;
@@ -619,6 +1223,8 @@
                 setInvoiceData({ customerName:'', addressLine1:'', addressLine2:'', city:'', pincode:'', state:'', gstNo:'', contactPerson:'', contactDetails:'', totalCartons:'', ewayBillNumber:'', paymentTerms:'100% ADVANCE', customPaymentTerms:'', logisticsCharges:0, cashDiscount:0, piNumber:'13/2025-26' });
                 setProducts([]); setCategories([]); setCurrentCategory(0); setUploadedCSV(null);
                 setOrderData({}); setInventoryData({}); setUploadedInventoryFiles([]);
+                setSelectMode(false); setSelectedGroups([]); setBulkOpen(false); setBulkQty({}); setBulkAll('');
+                setShotOpen(false); setShotRows([]); setShotMisses([]); setShotBusy(null);
             };
 
             const { totalItems, totalValue } = orderSummary;
@@ -778,12 +1384,40 @@
                                                 <button key={i} onClick={()=>setCurrentCategory(i)} style={{ padding:'8px 14px', borderRadius:'8px', border:'none', cursor:'pointer', fontWeight:600, background:currentCategory===i?'linear-gradient(to right,var(--brand1),var(--brand2))':'#f3f4f6', color:currentCategory===i?'#fff':'#374151' }}>{cat}</button>
                                             ))}
                                         </div>
+
+                                        {/* ---- Fast-entry toolbar ---- */}
+                                        <div style={{ marginTop:'18px', paddingTop:'16px', borderTop:'1px dashed #e5e7eb', display:'flex', gap:'10px', flexWrap:'wrap', alignItems:'center' }}>
+                                            <input type="file" accept="image/*" multiple ref={shotInputRef} style={{ display:'none' }} onChange={handleScreenshotUpload} />
+                                            <button className="btn-primary" style={{ background:'linear-gradient(to right,#0ea5e9,#0369a1)', padding:'10px 18px' }}
+                                                onClick={()=>setShotOpen(true)}>📸 Order from Screenshots</button>
+
+                                            <button className="btn-secondary" onClick={()=>{ setSelectMode(!selectMode); if(selectMode) clearSelection(); }}
+                                                style={{ background:selectMode?'#4f46e5':'#e5e7eb', color:selectMode?'#fff':'#374151' }}>
+                                                {selectMode?'☑ Selecting styles — tap to exit':'☑ Select Styles (bulk fill)'}
+                                            </button>
+
+                                            {selectMode && (<>
+                                                <button className="btn-secondary" onClick={selectAllInCategory}>Select all in this category</button>
+                                                <button className="btn-secondary" onClick={clearSelection}>Clear</button>
+                                                <span style={{ fontWeight:700, color:'#4f46e5' }}>{selectedGroups.length} style(s) selected</span>
+                                                <button className="btn-primary" disabled={!selectedGroups.length} onClick={openBulk}
+                                                    style={{ background:selectedGroups.length?'linear-gradient(to right,#f97316,#ea580c)':'#9ca3af', padding:'10px 18px' }}>
+                                                    ⚡ Enter Quantities →
+                                                </button>
+                                            </>)}
+                                        </div>
                                     </div>
                                     <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(480px,1fr))', gap:'18px' }}>
-                                        {groupProductsByParentAndVariant(getCurrentCategoryProducts()).map((g,idx)=>(
-                                            <div key={idx} className="card" style={{ padding:'18px' }}>
+                                        {groupProductsByParentAndVariant(getCurrentCategoryProducts()).map((g,idx)=>{
+                                          const gk = gKey(g); const isSel = selectedGroups.includes(gk);
+                                          return (
+                                            <div key={idx} className="card" style={{ padding:'18px', border:isSel?'2px solid #4f46e5':undefined, background:isSel?'#f5f4ff':undefined, cursor:selectMode?'pointer':'default' }} onClick={selectMode?()=>toggleGroup(gk):undefined}>
                                                 <div style={{ display:'flex', gap:'14px' }}>
-                                                    <img src={g.imageUrl||'https://placehold.co/80x80/E0E7FF/4338CA?text=No+Image'} alt={g.parentSKU} style={{ width:'80px', height:'80px', objectFit:'cover', borderRadius:'8px', border:'1.5px solid #e5e7eb', cursor:'pointer', flexShrink:0 }} onError={e=>e.target.src='https://placehold.co/80x80/E0E7FF/4338CA?text=No+Image'} onClick={()=>openLightbox(g.imageUrl)} />
+                                                    {selectMode && (
+                                                        <input type="checkbox" checked={isSel} onChange={()=>toggleGroup(gk)} onClick={e=>e.stopPropagation()}
+                                                            style={{ width:'22px', height:'22px', accentColor:'#4f46e5', cursor:'pointer', flexShrink:0, marginTop:'4px' }} />
+                                                    )}
+                                                    <img src={g.imageUrl||'https://placehold.co/80x80/E0E7FF/4338CA?text=No+Image'} alt={g.parentSKU} style={{ width:'80px', height:'80px', objectFit:'cover', borderRadius:'8px', border:'1.5px solid #e5e7eb', cursor:'pointer', flexShrink:0 }} onError={e=>e.target.src='https://placehold.co/80x80/E0E7FF/4338CA?text=No+Image'} onClick={e=>{ e.stopPropagation(); openLightbox(g.imageUrl); }} />
                                                     <div style={{ flex:1 }}>
                                                         <h3 style={{ fontSize:'17px', fontWeight:700, margin:'0 0 4px', color:'var(--brand1)' }}>{g.parentSKU}</h3>
                                                         <p style={{ fontSize:'13px', color:'#6b7280', margin:'0 0 2px' }}>Color: {g.color} · Variant: {g.variant}</p>
@@ -801,14 +1435,15 @@
                                                                         </div>
                                                                         {q>0 && <div style={{ fontSize:'12px', color:'#2563eb', fontWeight:700, marginTop:'3px' }}>Total: ₹{lt.toFixed(2)}</div>}
                                                                     </div>
-                                                                    <input type="number" min="0" max={info.quantity||9999} value={q===0?'':q} onChange={e=>handleQuantityChange(s.childSKU,e.target.value)} style={{ width:'68px', padding:'5px', border:'1.5px solid #d1d5db', borderRadius:'6px', textAlign:'center', marginLeft:'10px' }} placeholder="0" />
+                                                                    <input type="number" min="0" max={info.quantity||9999} value={q===0?'':q} onClick={e=>e.stopPropagation()} onChange={e=>handleQuantityChange(s.childSKU,e.target.value)} style={{ width:'68px', padding:'5px', border:'1.5px solid #d1d5db', borderRadius:'6px', textAlign:'center', marginLeft:'10px' }} placeholder="0" />
                                                                 </div>
                                                             );
                                                         })}
                                                     </div>
                                                 </div>
                                             </div>
-                                        ))}
+                                          );
+                                        })}
                                     </div>
                                     <div className="card" style={{ padding:'22px' }}>
                                         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:'14px' }}>
@@ -900,6 +1535,165 @@
                             )}
                         </div>
                     </div>
+
+                    {/* ================= BULK QUANTITY MODAL ================= */}
+                    {bulkOpen && (
+                        <div style={{ position:'fixed', inset:0, background:'rgba(15,23,42,.55)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1200, padding:'16px' }}>
+                            <div className="card" style={{ padding:'28px', width:'100%', maxWidth:'560px', maxHeight:'88vh', overflowY:'auto' }}>
+                                <h3 style={{ marginTop:0, fontSize:'20px' }}>⚡ Fill quantities for {selectedGroups.length} selected style(s)</h3>
+                                <p style={{ color:'#6b7280', fontSize:'13px', marginTop:0 }}>
+                                    Type a quantity next to a size and it goes into <strong>every</strong> selected style that has that size.
+                                    Leave a size blank to leave it untouched.
+                                </p>
+
+                                <div style={{ background:'#eef2ff', borderRadius:'10px', padding:'16px', margin:'18px 0' }}>
+                                    <label style={{ fontWeight:700, fontSize:'14px' }}>Same quantity in every size</label>
+                                    <div style={{ display:'flex', gap:'10px', marginTop:'8px' }}>
+                                        <input type="number" min="0" className="input-field" style={{ flex:1 }} value={bulkAll}
+                                            onChange={e=>setBulkAll(e.target.value)} placeholder="e.g. 1" />
+                                        <button className="btn-primary" style={{ whiteSpace:'nowrap' }} onClick={()=>applyBulkAllSizes(bulkAll)}>Fill all sizes</button>
+                                    </div>
+                                </div>
+
+                                <div style={{ display:'flex', gap:'18px', flexWrap:'wrap', marginBottom:'14px', fontSize:'14px' }}>
+                                    <label style={{ display:'flex', gap:'6px', alignItems:'center', fontWeight:600 }}>
+                                        <input type="radio" checked={bulkMode==='set'} onChange={()=>setBulkMode('set')} /> Set exact quantity
+                                    </label>
+                                    <label style={{ display:'flex', gap:'6px', alignItems:'center', fontWeight:600 }}>
+                                        <input type="radio" checked={bulkMode==='add'} onChange={()=>setBulkMode('add')} /> Add to what's already there
+                                    </label>
+                                    <label style={{ display:'flex', gap:'6px', alignItems:'center', fontWeight:600 }}>
+                                        <input type="checkbox" checked={bulkCap} onChange={e=>setBulkCap(e.target.checked)} /> Never exceed available stock
+                                    </label>
+                                </div>
+
+                                <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))', gap:'10px' }}>
+                                    {Object.keys(bulkQty).sort((a,b)=>sizeRank(a)-sizeRank(b)).map(sz=>(
+                                        <div key={sz} style={{ display:'flex', alignItems:'center', gap:'8px', background:'#f9fafb', border:'1px solid #eef0f6', borderRadius:'8px', padding:'8px 10px' }}>
+                                            <span style={{ fontWeight:700, flex:1, fontSize:'14px' }}>{sz}</span>
+                                            <input type="number" min="0" value={bulkQty[sz]} onChange={e=>setBulkQty({...bulkQty, [sz]:e.target.value})}
+                                                style={{ width:'62px', padding:'6px', border:'1.5px solid #d1d5db', borderRadius:'6px', textAlign:'center' }} placeholder="—" />
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <div style={{ marginTop:'24px', display:'flex', justifyContent:'space-between', gap:'12px' }}>
+                                    <button className="btn-secondary" onClick={()=>setBulkOpen(false)}>Cancel</button>
+                                    <button className="btn-primary" style={{ background:'linear-gradient(to right,#f97316,#ea580c)' }} onClick={executeBulk}>⚡ Execute</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ================= ORDER SCREENSHOTS MODAL ================= */}
+                    {shotOpen && (
+                        <div style={{ position:'fixed', inset:0, background:'rgba(15,23,42,.55)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1200, padding:'16px' }}>
+                            <div className="card" style={{ padding:'28px', width:'100%', maxWidth:'900px', maxHeight:'90vh', overflowY:'auto' }}>
+                                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:'12px' }}>
+                                    <div>
+                                        <h3 style={{ marginTop:0, marginBottom:'4px', fontSize:'20px' }}>📸 Order from WhatsApp Screenshots</h3>
+                                        <p style={{ color:'#6b7280', fontSize:'13px', margin:0 }}>Upload the catalogue screenshots the buyer sent back. Styles they ticked in green are picked up automatically — check the list before adding.</p>
+                                    </div>
+                                    <button className="btn-secondary" onClick={()=>setShotOpen(false)}>✕</button>
+                                </div>
+
+                                <div style={{ border:'2px dashed #0ea5e9', borderRadius:'12px', padding:'26px', textAlign:'center', background:'#f0f9ff', margin:'18px 0' }}>
+                                    <div style={{ fontSize:'34px' }}>🖼️</div>
+                                    <p style={{ color:'#0369a1', fontWeight:600, margin:'8px 0 14px' }}>
+                                        {shotRows.length? `${shotRows.length} ticked style(s) found so far` : 'Select all the buyer\'s screenshots at once (JPG / PNG)'}
+                                    </p>
+                                    <div style={{ display:'flex', gap:'10px', justifyContent:'center', flexWrap:'wrap' }}>
+                                        <button className="btn-primary" style={{ background:'linear-gradient(to right,#0ea5e9,#0369a1)' }} disabled={!!shotBusy}
+                                            onClick={()=>shotInputRef.current?.click()}>🖼️ {shotRows.length?'Add More Screenshots':'Choose Screenshots'}</button>
+                                        {(shotRows.length>0||shotMisses.length>0) && <button className="btn-secondary" disabled={!!shotBusy} onClick={resetShots}>Clear results</button>}
+                                    </div>
+                                    {shotBusy && (
+                                        <div style={{ marginTop:'18px' }}>
+                                            <div style={{ fontWeight:700, color:'#0369a1', marginBottom:'8px' }}>{shotBusy.label} — {shotBusy.done} of {shotBusy.total} done</div>
+                                            <div style={{ height:'10px', background:'#dbeafe', borderRadius:'6px', overflow:'hidden' }}>
+                                                <div style={{ height:'100%', width:`${Math.round((shotBusy.done/shotBusy.total)*100)}%`, background:'linear-gradient(to right,#0ea5e9,#0369a1)', transition:'.3s' }} />
+                                            </div>
+                                            <div style={{ fontSize:'12px', color:'#6b7280', marginTop:'8px' }}>Reading text from images takes a few seconds each — please keep this window open.</div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {shotRows.length>0 && (
+                                    <>
+                                        <div style={{ display:'flex', gap:'10px', flexWrap:'wrap', alignItems:'center', background:'#f9fafb', border:'1px solid #eef0f6', borderRadius:'10px', padding:'12px', marginBottom:'14px' }}>
+                                            <span style={{ fontWeight:700, fontSize:'14px' }}>Quantity per size:</span>
+                                            <input type="number" min="0" value={shotDefaultQty} onChange={e=>shotApplyQtyAll(e.target.value)}
+                                                style={{ width:'70px', padding:'6px', border:'1.5px solid #d1d5db', borderRadius:'6px', textAlign:'center' }} />
+                                            <button className="btn-secondary" onClick={shotAllSizes}>Use all sizes</button>
+                                            <button className="btn-secondary" onClick={shotOnlySeen}>Only sizes shown in screenshot</button>
+                                            <span style={{ fontSize:'12px', color:'#6b7280' }}>Tap a size to switch it on or off · ✓ = seen in the screenshot · ·0 = out of stock</span>
+                                        </div>
+
+                                        <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
+                                            {shotRows.map(r=>(
+                                                <div key={r.key} style={{ display:'flex', gap:'12px', alignItems:'flex-start', border:'1px solid #eef0f6', borderRadius:'10px', padding:'12px', background:r.include?'#fff':'#f3f4f6', opacity:r.include?1:.55 }}>
+                                                    <input type="checkbox" checked={r.include} onChange={()=>shotToggleInclude(r.key)} style={{ width:'20px', height:'20px', accentColor:'#4f46e5', marginTop:'4px' }} />
+                                                    <img src={(r.group&&r.group.imageUrl)||r.thumb} alt={r.parent} style={{ width:'54px', height:'54px', objectFit:'cover', borderRadius:'8px', border:'1px solid #e5e7eb', flexShrink:0 }} onError={e=>e.target.src=r.thumb} />
+                                                    <div style={{ flex:1, minWidth:0 }}>
+                                                        <div style={{ fontWeight:700, color:'var(--brand1)' }}>{r.parent} <span style={{ color:'#6b7280', fontWeight:500, fontSize:'13px' }}>{r.group?`· ${r.color} (${r.variant})`:''}</span></div>
+                                                        {!r.group && (
+                                                            <div style={{ marginTop:'7px', background:'#fffbeb', border:'1px solid #fde68a', borderRadius:'8px', padding:'8px 10px' }}>
+                                                                <div style={{ fontSize:'12.5px', color:'#92400e', fontWeight:600, marginBottom:'6px' }}>
+                                                                    Couldn't read the colour{r.ocrColor?` (it looked like "${r.ocrColor}")`:''} — please pick it:
+                                                                </div>
+                                                                <select className="input-field" style={{ padding:'7px' }} defaultValue="" onChange={e=>shotResolve(r.key, e.target.value)}>
+                                                                    <option value="">Choose colour…</option>
+                                                                    {r.options.map(o=><option key={o.variant} value={o.variant}>{o.color} ({o.variant})</option>)}
+                                                                </select>
+                                                            </div>
+                                                        )}
+                                                        <div style={{ display:'flex', gap:'6px', flexWrap:'wrap', marginTop:'7px' }}>
+                                                            {r.catSizes.map(s=>{
+                                                                const on = r.sizes.includes(s.norm);
+                                                                const out = s.stock!==null && s.stock<=0;
+                                                                return (
+                                                                    <button key={s.norm} onClick={()=>shotToggleSize(r.key,s.norm)} title={s.stock===null?'stock unknown':`stock ${s.stock}`}
+                                                                        style={{ border:'1.5px solid '+(on?'#4f46e5':'#d1d5db'), background:on?'#4f46e5':'#fff', color:on?'#fff':(out?'#9ca3af':'#374151'),
+                                                                                 borderRadius:'999px', padding:'4px 11px', fontSize:'12.5px', fontWeight:700, cursor:'pointer' }}>
+                                                                        {s.size}{out?' ·0':''}{r.seenSizes.includes(s.norm)?' ✓':''}
+                                                                    </button>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                        <div style={{ fontSize:'11.5px', color:'#9ca3af', marginTop:'6px' }}>from {r.file}</div>
+                                                    </div>
+                                                    <div style={{ textAlign:'right', flexShrink:0 }}>
+                                                        <div style={{ fontSize:'11px', color:'#6b7280', fontWeight:600 }}>Qty/size</div>
+                                                        <input type="number" min="0" value={r.qty} onChange={e=>shotSetQty(r.key,e.target.value)}
+                                                            style={{ width:'62px', padding:'6px', border:'1.5px solid #d1d5db', borderRadius:'6px', textAlign:'center', marginTop:'3px' }} />
+                                                        <div><button onClick={()=>shotRemove(r.key)} style={{ border:'none', background:'none', color:'#dc2626', fontSize:'12px', cursor:'pointer', marginTop:'6px', fontWeight:600 }}>Remove</button></div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </>
+                                )}
+
+                                {shotMisses.length>0 && (
+                                    <div style={{ marginTop:'16px', background:'#fffbeb', border:'1px solid #fde68a', borderRadius:'10px', padding:'14px' }}>
+                                        <div style={{ fontWeight:700, color:'#92400e', marginBottom:'6px' }}>⚠️ Needs a manual look ({shotMisses.length})</div>
+                                        <ul style={{ margin:0, paddingLeft:'20px', color:'#92400e', fontSize:'13px' }}>
+                                            {shotMisses.map((m,i)=>(<li key={i}>{m.note? `${m.file} — ${m.note}` : `${m.parent} ${m.color||m.variant||''} — not found in the catalog (${m.file})`}</li>))}
+                                        </ul>
+                                    </div>
+                                )}
+
+                                <div style={{ marginTop:'24px', display:'flex', justifyContent:'space-between', gap:'12px', flexWrap:'wrap' }}>
+                                    <button className="btn-secondary" onClick={()=>setShotOpen(false)}>Close</button>
+                                    <button className="btn-primary" disabled={!shotRows.some(r=>r.include&&r.group)||!!shotBusy}
+                                        style={{ background:(shotRows.some(r=>r.include&&r.group)&&!shotBusy)?'linear-gradient(to right,#16a34a,#15803d)':'#9ca3af' }}
+                                        onClick={applyScreenshotRows}>
+                                        ✅ Add {shotRows.filter(r=>r.include&&r.group).reduce((n,r)=>n+r.sizes.length,0)} line(s) to the order
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     <div className={`lightbox-overlay ${lightbox.visible?'visible':''}`} onClick={closeLightbox}>
                         <div className="lightbox-content" onClick={e=>e.stopPropagation()}>
