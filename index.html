@@ -84,6 +84,14 @@
 
         const DOC_LABELS = { PI: 'PROFORMA INVOICE', TI: 'TAX INVOICE' };
 
+        // Indian financial year for today — April to March, so Aug 2026 -> "2026-27"
+        const currentFY = () => {
+            const d = new Date();
+            const start = d.getMonth() >= 3 ? d.getFullYear() : d.getFullYear() - 1;
+            return start + '-' + String((start + 1) % 100).padStart(2, '0');
+        };
+        const defaultDocNumber = () => '13/' + currentFY();
+
         /* =================================================================
            ORDER SCREENSHOT READER
            Reads WhatsApp price-list screenshots, finds the green tick marks
@@ -486,7 +494,7 @@
                 customerName:'', addressLine1:'', addressLine2:'', city:'', pincode:'', state:'', gstNo:'',
                 contactPerson:'', contactDetails:'', totalCartons:'', ewayBillNumber:'',
                 paymentTerms:'100% ADVANCE', customPaymentTerms:'', logisticsCharges:0, cashDiscount:0,
-                piNumber:'13/2025-26'
+                piNumber:defaultDocNumber()
             });
 
             const [products, setProducts] = useState([]);
@@ -815,8 +823,8 @@
             const shotToggleInclude = (key) => setShotRows(prev => prev.map(r => r.key===key ? { ...r, include:!r.include } : r));
             const shotRemove = (key) => setShotRows(prev => prev.filter(r=>r.key!==key));
             const shotApplyQtyAll = (v) => { const q=parseInt(v)||0; setShotDefaultQty(q); setShotRows(prev=>prev.map(r=>({...r, qty:q}))); };
-            const shotOnlySeen = () => setShotRows(prev => prev.map(r => r.group ? ({ ...r, sizes: r.seenSizes.filter(s=>r.catSizes.some(c=>c.norm===s)) }) : r));
-            const shotAllSizes  = () => setShotRows(prev => prev.map(r => r.group ? ({ ...r, sizes: r.catSizes.map(c=>c.norm) }) : r));
+            const shotInStock  = () => setShotRows(prev => prev.map(r => r.group ? ({ ...r, sizes: r.catSizes.filter(c=>c.stock===null||c.stock>0).map(c=>c.norm) }) : r));
+            const shotAllSizes = () => setShotRows(prev => prev.map(r => r.group ? ({ ...r, sizes: r.catSizes.map(c=>c.norm) }) : r));
 
             const applyScreenshotRows = () => {
                 const next = { ...orderData };
@@ -1220,7 +1228,7 @@
             const resetAll = () => {
                 setMode('start'); setEditMode(false); setCurrentStep(1);
                 setCustomerData({ date:new Date().toISOString().split('T')[0], customerName:'', customerMobile:'', city:'', pincode:'' });
-                setInvoiceData({ customerName:'', addressLine1:'', addressLine2:'', city:'', pincode:'', state:'', gstNo:'', contactPerson:'', contactDetails:'', totalCartons:'', ewayBillNumber:'', paymentTerms:'100% ADVANCE', customPaymentTerms:'', logisticsCharges:0, cashDiscount:0, piNumber:'13/2025-26' });
+                setInvoiceData({ customerName:'', addressLine1:'', addressLine2:'', city:'', pincode:'', state:'', gstNo:'', contactPerson:'', contactDetails:'', totalCartons:'', ewayBillNumber:'', paymentTerms:'100% ADVANCE', customPaymentTerms:'', logisticsCharges:0, cashDiscount:0, piNumber:defaultDocNumber() });
                 setProducts([]); setCategories([]); setCurrentCategory(0); setUploadedCSV(null);
                 setOrderData({}); setInventoryData({}); setUploadedInventoryFiles([]);
                 setSelectMode(false); setSelectedGroups([]); setBulkOpen(false); setBulkQty({}); setBulkAll('');
@@ -1624,9 +1632,9 @@
                                             <span style={{ fontWeight:700, fontSize:'14px' }}>Quantity per size:</span>
                                             <input type="number" min="0" value={shotDefaultQty} onChange={e=>shotApplyQtyAll(e.target.value)}
                                                 style={{ width:'70px', padding:'6px', border:'1.5px solid #d1d5db', borderRadius:'6px', textAlign:'center' }} />
-                                            <button className="btn-secondary" onClick={shotAllSizes}>Use all sizes</button>
-                                            <button className="btn-secondary" onClick={shotOnlySeen}>Only sizes shown in screenshot</button>
-                                            <span style={{ fontSize:'12px', color:'#6b7280' }}>Tap a size to switch it on or off · ✓ = seen in the screenshot · ·0 = out of stock</span>
+                                            <button className="btn-secondary" onClick={shotAllSizes}>Use every size</button>
+                                            <button className="btn-secondary" onClick={shotInStock}>Only sizes in stock</button>
+                                            <span style={{ fontSize:'12px', color:'#6b7280' }}>Tap a size to switch it on or off. The number after each size is the stock you have.</span>
                                         </div>
 
                                         <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
@@ -1655,7 +1663,7 @@
                                                                     <button key={s.norm} onClick={()=>shotToggleSize(r.key,s.norm)} title={s.stock===null?'stock unknown':`stock ${s.stock}`}
                                                                         style={{ border:'1.5px solid '+(on?'#4f46e5':'#d1d5db'), background:on?'#4f46e5':'#fff', color:on?'#fff':(out?'#9ca3af':'#374151'),
                                                                                  borderRadius:'999px', padding:'4px 11px', fontSize:'12.5px', fontWeight:700, cursor:'pointer' }}>
-                                                                        {s.size}{out?' ·0':''}{r.seenSizes.includes(s.norm)?' ✓':''}
+                                                                        {s.size}{s.stock!==null?` · ${s.stock}`:''}
                                                                     </button>
                                                                 );
                                                             })}
