@@ -498,6 +498,8 @@
             });
 
             const [products, setProducts] = useState([]);
+            const [useOfferPrice, setUseOfferPrice] = useState(true);
+            const [offerStats, setOfferStats] = useState({ total:0, withOffer:0, higher:0, higherList:[] });
             const [categories, setCategories] = useState([]);
             const [currentCategory, setCurrentCategory] = useState(0);
             const [uploadedCSV, setUploadedCSV] = useState(null);
@@ -555,6 +557,27 @@
                 }
             }, [products, inventoryData]);
 
+            /* ---- Offer price handling ----
+               The catalog sheet may carry an "Offer Price" column. Where a row has one,
+               it replaces the WSP as the rate used everywhere: order screen, totals,
+               invoice and Excel. The original WSP is kept so it can be shown struck
+               through, and so the toggle can switch back. */
+            const priceNum = (v) => { const n = parseFloat(String(v==null?'':v).replace(/[^0-9.]/g,'')); return isNaN(n)?null:n; };
+
+            const withPricing = (rows, useOffer) => rows.map(r => {
+                const base  = (r.WSPBase !== undefined) ? r.WSPBase : (priceNum(r.WSP) || 0);
+                const offer = (r.OfferPrice !== undefined) ? r.OfferPrice : priceNum(r['Offer Price']);
+                const dtype = (r.DiscountType !== undefined) ? r.DiscountType : String(r['Discount Type']||'').trim();
+                const on = !!useOffer && offer !== null && offer > 0;
+                return { ...r, WSPBase:base, OfferPrice:offer, DiscountType:dtype, IsOffer:on, WSP: on ? offer : base };
+            });
+
+            const toggleOfferPricing = (on) => {
+                setUseOfferPrice(on);
+                setProducts(prev => withPricing(prev, on));
+                flash(on ? '💸 Using the offer price wherever the catalog has one.' : '↩️ Back to the standard WSP for every product.');
+            };
+
             // ---- Catalog upload ----
             const handleCSVUpload = (event) => {
                 const file = event.target.files[0]; if(!file) return;
@@ -563,16 +586,28 @@
                         const cleaned = res.data.map(row => {
                             const cr={};
                             Object.keys(row).forEach(k => {
-                                let ck=k.replace(/[^a-zA-Z0-9\s]/g,'').trim();
-                                if (k.toLowerCase().includes('image') && k.toLowerCase().includes('url')) ck='Image URL';
+                                const low = String(k).toLowerCase();
+                                let ck = k.replace(/[^a-zA-Z0-9\s]/g,'').trim();
+                                // "Image URL", "Image 1 URL", "Image 2 URL" — the first one is the main photo
+                                if (low.includes('image') && low.includes('url')) {
+                                    const m = low.match(/image\s*(\d*)/);
+                                    const idx = (m && m[1]) ? parseInt(m[1]) : 1;
+                                    ck = (idx === 1) ? 'Image URL' : ('Image URL ' + idx);
+                                }
                                 cr[ck]=row[k];
                             });
                             return cr;
                         }).filter(r=>r['Child SKU Code']);
-                        setProducts(cleaned);
+                        const priced = withPricing(cleaned, true);
+                        const withOffer = priced.filter(p=>p.OfferPrice!==null && p.OfferPrice>0);
+                        const oddOnes  = withOffer.filter(p=>p.WSPBase>0 && p.OfferPrice>p.WSPBase);
+                        setProducts(priced);
+                        setUseOfferPrice(true);
+                        setOfferStats({ total:priced.length, withOffer:withOffer.length, higher:oddOnes.length,
+                                        higherList:oddOnes.slice(0,40).map(p=>({ sku:p['Child SKU Code'], wsp:p.WSPBase, offer:p.OfferPrice })) });
                         setCategories([...new Set(cleaned.map(i=>i.Category))].filter(Boolean));
                         setUploadedCSV(file.name);
-                        flash('✅ Catalog loaded: '+cleaned.length+' products.');
+                        flash('✅ Catalog loaded: '+cleaned.length+' products'+(withOffer.length?` · ${withOffer.length} have an offer price (now being used as the rate).`:'.'));
                     },
                     error: (e) => flash('❌ Catalog error: '+e.message)
                 });
@@ -639,8 +674,10 @@
                     const parent=p['Parent SKU Code']; const child=p['Child SKU Code'];
                     let variant = (child && child.length>11) ? child.substring(9,12) : (p.Color||'DEFAULT');
                     const key=`${parent}_${variant}`;
-                    if(!g[key]) g[key]={ parentSKU:parent, variant, color:p.Color, category:p.Category, mrp:p.MRP, imageUrl:p['Image URL']?String(p['Image URL']).trim():'', hsn:p.HSN, sizes:[] };
-                    g[key].sizes.push({ size:p.Size, childSKU:child, wsp:p.WSP });
+                    if(!g[key]) g[key]={ parentSKU:parent, variant, color:p.Color, category:p.Category, mrp:p.MRP, imageUrl:p['Image URL']?String(p['Image URL']).trim():'', hsn:p.HSN,
+                                         discountType:p.DiscountType||'', remark1:String(p['Remark 1']||'').trim(), remark2:String(p['Remark 2']||'').trim(), sizes:[] };
+                    if (!g[key].discountType && p.DiscountType) g[key].discountType = p.DiscountType;
+                    g[key].sizes.push({ size:p.Size, childSKU:child, wsp:p.WSP, listWsp:p.WSPBase, isOffer:!!p.IsOffer });
                 });
                 return Object.values(g);
             };
@@ -1160,7 +1197,8 @@
   <thead><tr><th>S NO</th><th>Product Code</th><th>Size</th><th>Category</th><th>Color</th><th>HSN</th><th>Qty</th><th>MRP</th><th>Rate</th><th>Amount</th></tr></thead>
   <tbody>
   ${orderProducts.map((item,i)=>{ const {product,quantity}=item; const lt=quantity*parseFloat(product.WSP||0);
-    return `<tr><td>${i+1}</td><td>${product['Child SKU Code']}</td><td>${product.Size}</td><td>${product.Category}</td><td>${product.Color}</td><td>${product.HSN}</td><td><strong>${quantity}</strong></td><td>₹${product.MRP}</td><td><strong>₹${product.WSP}</strong></td><td><strong>₹${lt.toFixed(2)}</strong></td></tr>`;
+    const offerNote = (product.IsOffer && product.WSPBase > product.WSP) ? `<br><span style="text-decoration:line-through;color:#888;font-size:9px;">₹${product.WSPBase}</span>` : '';
+    return `<tr><td>${i+1}</td><td>${product['Child SKU Code']}</td><td>${product.Size}</td><td>${product.Category}</td><td>${product.Color}</td><td>${product.HSN}</td><td><strong>${quantity}</strong></td><td>₹${product.MRP}</td><td><strong>₹${product.WSP}</strong>${offerNote}</td><td><strong>₹${lt.toFixed(2)}</strong></td></tr>`;
   }).join('')}
   </tbody>
  </table>
@@ -1210,9 +1248,10 @@
             const downloadAsExcel = () => {
                 const totals=calculateInvoiceTotals(); const wb=XLSX.utils.book_new();
                 const header=[['UMORA FASHION PRIVATE LIMITED'],[DOC_LABELS[docType]],[''],['Invoice Number:',invoiceData.piNumber],['Date:',new Date().toLocaleDateString('en-GB')],[''],['CUSTOMER DETAILS:'],['Customer Name:',invoiceData.customerName],['Address Line 1:',invoiceData.addressLine1],['Address Line 2:',invoiceData.addressLine2],['City:',invoiceData.city],['Pincode:',invoiceData.pincode],['State:',invoiceData.state],['GST Number:',invoiceData.gstNo],['Contact Person:',invoiceData.contactPerson],['Contact Details:',invoiceData.contactDetails],[''],['PRODUCTS:']];
-                const pdata=[['S.No','Parent SKU','Product Code','Size','Category','Color','HSN','Quantity','MRP','Rate','Amount','Image URL (Reference)']];
+                const pdata=[['S.No','Parent SKU','Product Code','Size','Category','Color','HSN','Quantity','MRP','Rate','Amount','List WSP','Discount Type','Image URL (Reference)']];
                 getOrderProductsWithIndex().forEach((item,i)=>{ const {product,quantity}=item; const lt=quantity*parseFloat(product.WSP||0);
-                    pdata.push([i+1,product['Parent SKU Code'],product['Child SKU Code'],product.Size,product.Category,product.Color,product.HSN,quantity,`₹${product.MRP}`,`₹${product.WSP}`,`₹${lt.toFixed(2)}`, product['Image URL']||'N/A']); });
+                    pdata.push([i+1,product['Parent SKU Code'],product['Child SKU Code'],product.Size,product.Category,product.Color,product.HSN,quantity,`₹${product.MRP}`,`₹${product.WSP}`,`₹${lt.toFixed(2)}`,
+                        product.WSPBase!==undefined?`₹${product.WSPBase}`:'', product.IsOffer?(product.DiscountType||'Offer Price'):'', product['Image URL']||'N/A']); });
                 const tdata=[[''],['TOTALS:'],['Total Quantity:',totals.totalQty],['Total Value:',`₹${totals.totalValue.toFixed(2)}`]];
                 if(invoiceData.cashDiscount>0) tdata.push(['Cash Discount:',`₹${totals.discountAmount.toFixed(2)}`]);
                 if(invoiceData.logisticsCharges>0) tdata.push(['Logistics Charges:',`₹${parseFloat(invoiceData.logisticsCharges).toFixed(2)}`]);
@@ -1230,6 +1269,7 @@
                 setCustomerData({ date:new Date().toISOString().split('T')[0], customerName:'', customerMobile:'', city:'', pincode:'' });
                 setInvoiceData({ customerName:'', addressLine1:'', addressLine2:'', city:'', pincode:'', state:'', gstNo:'', contactPerson:'', contactDetails:'', totalCartons:'', ewayBillNumber:'', paymentTerms:'100% ADVANCE', customPaymentTerms:'', logisticsCharges:0, cashDiscount:0, piNumber:defaultDocNumber() });
                 setProducts([]); setCategories([]); setCurrentCategory(0); setUploadedCSV(null);
+                setUseOfferPrice(true); setOfferStats({ total:0, withOffer:0, higher:0, higherList:[] });
                 setOrderData({}); setInventoryData({}); setUploadedInventoryFiles([]);
                 setSelectMode(false); setSelectedGroups([]); setBulkOpen(false); setBulkQty({}); setBulkAll('');
                 setShotOpen(false); setShotRows([]); setShotMisses([]); setShotBusy(null);
@@ -1339,6 +1379,34 @@
                                         <p style={{ color:'#6b7280', marginBottom:'22px' }}>{uploadedCSV?`${products.length} products across ${categories.length} categories`:'Use the merged UMORA_Master_Catalog_Winter_NonWinter.csv (Parent SKU, Child SKU, Color, Size, Category, MRP, WSP, Image URL, HSN, Stock)'}</p>
                                         <button className="btn-primary" onClick={()=>fileInputRef.current?.click()}>📁 {uploadedCSV?'Change File':'Upload CSV'}</button>
                                     </div>
+
+                                    {uploadedCSV && offerStats.withOffer>0 && (
+                                        <div style={{ marginTop:'22px', border:'1.5px solid '+(useOfferPrice?'#fca5a5':'#e5e7eb'), background:useOfferPrice?'#fef2f2':'#f9fafb', borderRadius:'12px', padding:'18px' }}>
+                                            <label style={{ display:'flex', gap:'12px', alignItems:'flex-start', cursor:'pointer' }}>
+                                                <input type="checkbox" checked={useOfferPrice} onChange={e=>toggleOfferPricing(e.target.checked)}
+                                                    style={{ width:'22px', height:'22px', accentColor:'#dc2626', marginTop:'2px', flexShrink:0 }} />
+                                                <span>
+                                                    <span style={{ fontWeight:700, fontSize:'16px' }}>Charge the Offer Price instead of the WSP</span>
+                                                    <span style={{ display:'block', color:'#6b7280', fontSize:'13.5px', marginTop:'4px' }}>
+                                                        <strong>{offerStats.withOffer}</strong> of {offerStats.total} products in this sheet have an offer price.
+                                                        {useOfferPrice
+                                                            ? ' Those are being billed at the offer price everywhere — order screen, totals, invoice and Excel. The rest stay at their normal WSP.'
+                                                            : ' Everything is being billed at the normal WSP right now.'}
+                                                    </span>
+                                                </span>
+                                            </label>
+                                            {useOfferPrice && offerStats.higher>0 && (
+                                                <div style={{ marginTop:'14px', background:'#fffbeb', border:'1px solid #fde68a', borderRadius:'8px', padding:'12px' }}>
+                                                    <div style={{ fontWeight:700, color:'#92400e', fontSize:'13.5px' }}>⚠️ Worth a look: {offerStats.higher} product(s) have an offer price <em>higher</em> than their WSP</div>
+                                                    <div style={{ color:'#92400e', fontSize:'12.5px', marginTop:'4px' }}>Usually these are multi-piece packs priced as a set. They will be billed at the offer price.</div>
+                                                    <div style={{ maxHeight:'120px', overflowY:'auto', marginTop:'8px', fontSize:'12px', color:'#78350f', fontFamily:'monospace' }}>
+                                                        {offerStats.higherList.map((h,i)=>(<div key={i}>{h.sku} — WSP ₹{h.wsp} → Offer ₹{h.offer}</div>))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
                                     <div style={{ marginTop:'26px', display:'flex', justifyContent:'space-between' }}>
                                         <button className="btn-secondary" onClick={()=>setCurrentStep(1)}>← Back</button>
                                         {uploadedCSV && <button className="btn-primary" onClick={()=>setCurrentStep(3)}>Next: Inventory →</button>}
@@ -1429,7 +1497,15 @@
                                                     <div style={{ flex:1 }}>
                                                         <h3 style={{ fontSize:'17px', fontWeight:700, margin:'0 0 4px', color:'var(--brand1)' }}>{g.parentSKU}</h3>
                                                         <p style={{ fontSize:'13px', color:'#6b7280', margin:'0 0 2px' }}>Color: {g.color} · Variant: {g.variant}</p>
-                                                        <p style={{ fontSize:'13px', fontWeight:700, color:'#dc2626', margin:'0 0 12px' }}>MRP: ₹{g.mrp}</p>
+                                                        <p style={{ fontSize:'13px', fontWeight:700, color:'#dc2626', margin:'0 0 8px' }}>MRP: ₹{g.mrp}</p>
+                                                        {(g.discountType || g.remark1 || g.remark2) && (
+                                                            <div style={{ display:'flex', gap:'6px', flexWrap:'wrap', marginBottom:'10px' }}>
+                                                                {g.discountType && g.discountType.toLowerCase()!=='no discount' &&
+                                                                    <span style={{ background:'#fef3c7', color:'#92400e', padding:'2px 8px', borderRadius:'999px', fontSize:'11px', fontWeight:700 }}>{g.discountType}</span>}
+                                                                {g.remark1 && <span style={{ background:'#eef2ff', color:'#3730a3', padding:'2px 8px', borderRadius:'999px', fontSize:'11px', fontWeight:600 }}>{g.remark1}</span>}
+                                                                {g.remark2 && <span style={{ background:'#eef2ff', color:'#3730a3', padding:'2px 8px', borderRadius:'999px', fontSize:'11px', fontWeight:600 }}>{g.remark2}</span>}
+                                                            </div>
+                                                        )}
                                                         {g.sizes.map((s,si)=>{ const q=orderData[s.childSKU]||0; const lt=q*parseFloat(s.wsp||0); const info=getStockInfo(s.childSKU);
                                                             return (
                                                                 <div key={si} className={info.className} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'9px', borderRadius:'8px', marginBottom:'7px' }}>
@@ -1437,7 +1513,11 @@
                                                                         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
                                                                             <span style={{ fontWeight:700 }}>{s.size}</span>
                                                                             <div style={{ display:'flex', gap:'8px' }}>
-                                                                                <span style={{ background:'#dcfce7', color:'#166534', padding:'2px 8px', borderRadius:'4px', fontSize:'12px' }}>WSP: ₹{s.wsp}</span>
+                                                                                {s.isOffer
+                                                                                    ? <span style={{ background:'#fee2e2', color:'#991b1b', padding:'2px 8px', borderRadius:'4px', fontSize:'12px', fontWeight:700 }}>
+                                                                                        Offer: ₹{s.wsp} <span style={{ textDecoration:'line-through', opacity:.65, fontWeight:500, marginLeft:'3px' }}>₹{s.listWsp}</span>
+                                                                                      </span>
+                                                                                    : <span style={{ background:'#dcfce7', color:'#166534', padding:'2px 8px', borderRadius:'4px', fontSize:'12px' }}>WSP: ₹{s.wsp}</span>}
                                                                                 <span style={{ fontWeight:700, fontSize:'12px' }}>{info.quantity===null?'Unknown':`Stock: ${info.quantity}`}</span>
                                                                             </div>
                                                                         </div>
